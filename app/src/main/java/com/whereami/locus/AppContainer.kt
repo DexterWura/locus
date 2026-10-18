@@ -25,6 +25,7 @@ class AppContainer(context: Context) {
     val trackingController: TrackingController = TrackingControllerImpl(
         context = appContext,
         settingsStore = settingsStore,
-        locationSource = locationSource
+        locationSource = locationSource,
+        trackRepository = trackRepository
     )
 }

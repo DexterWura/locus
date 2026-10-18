@@ -1,51 +1,68 @@
 package com.whereami.locus.data
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import android.content.SharedPreferences
+import com.whereami.locus.data.security.EncryptedPrefs
+import com.whereami.locus.domain.TrackingMode
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "locus_settings")
+class SettingsStore(context: Context) {
+    private val prefs: SharedPreferences =
+        EncryptedPrefs.create(context.applicationContext, PREFS_NAME)
 
-class SettingsStore(private val context: Context) {
-    private val trackingEnabledKey = booleanPreferencesKey("tracking_enabled")
-    private val onboardingCompleteKey = booleanPreferencesKey("onboarding_complete")
-    private val sampleIntervalMsKey = longPreferencesKey("sample_interval_ms")
+    private val _trackingEnabled = MutableStateFlow(prefs.getBoolean(KEY_TRACKING_ENABLED, false))
+    val trackingEnabled: StateFlow<Boolean> = _trackingEnabled.asStateFlow()
 
-    val trackingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[trackingEnabledKey] ?: false
+    private val _onboardingComplete =
+        MutableStateFlow(prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false))
+    val onboardingComplete: StateFlow<Boolean> = _onboardingComplete.asStateFlow()
+
+    private val _sampleIntervalMs =
+        MutableStateFlow(prefs.getLong(KEY_SAMPLE_INTERVAL_MS, DEFAULT_SAMPLE_INTERVAL_MS))
+    val sampleIntervalMs: StateFlow<Long> = _sampleIntervalMs.asStateFlow()
+
+    private val _trackingMode = MutableStateFlow(readMode())
+    val trackingMode: StateFlow<TrackingMode> = _trackingMode.asStateFlow()
+
+    fun setTrackingEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_TRACKING_ENABLED, enabled).apply()
+        _trackingEnabled.value = enabled
     }
 
-    val onboardingComplete: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[onboardingCompleteKey] ?: false
+    fun setOnboardingComplete(complete: Boolean) {
+        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, complete).apply()
+        _onboardingComplete.value = complete
     }
 
-    val sampleIntervalMs: Flow<Long> = context.dataStore.data.map { prefs ->
-        prefs[sampleIntervalMsKey] ?: DEFAULT_SAMPLE_INTERVAL_MS
+    fun setSampleIntervalMs(intervalMs: Long) {
+        prefs.edit().putLong(KEY_SAMPLE_INTERVAL_MS, intervalMs).apply()
+        _sampleIntervalMs.value = intervalMs
     }
 
-    suspend fun setTrackingEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[trackingEnabledKey] = enabled }
+    fun setTrackingMode(mode: TrackingMode) {
+        prefs.edit().putString(KEY_TRACKING_MODE, mode.name).apply()
+        _trackingMode.value = mode
     }
 
-    suspend fun setOnboardingComplete(complete: Boolean) {
-        context.dataStore.edit { it[onboardingCompleteKey] = complete }
-    }
-
-    suspend fun setSampleIntervalMs(intervalMs: Long) {
-        context.dataStore.edit { it[sampleIntervalMsKey] = intervalMs }
+    private fun readMode(): TrackingMode {
+        val raw = prefs.getString(KEY_TRACKING_MODE, TrackingMode.Foreground.name)
+        return runCatching { TrackingMode.valueOf(raw!!) }.getOrDefault(TrackingMode.Foreground)
     }
 
     companion object {
         const val DEFAULT_SAMPLE_INTERVAL_MS = 5_000L
         const val STILL_SAMPLE_INTERVAL_MS = 30_000L
         const val MIN_DISPLACEMENT_METERS = 8f
-        /** How long without meaningful movement before UI shows Still. */
+        const val STILL_MIN_DISPLACEMENT_METERS = 20f
         const val STILL_AFTER_MS = 45_000L
+        const val MOVING_MIN_DISTANCE_METERS = 5f
+
+        private const val PREFS_NAME = "locus_settings_secure"
+        private const val KEY_TRACKING_ENABLED = "tracking_enabled"
+        private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
+        private const val KEY_SAMPLE_INTERVAL_MS = "sample_interval_ms"
+        private const val KEY_TRACKING_MODE = "tracking_mode"
     }
 }

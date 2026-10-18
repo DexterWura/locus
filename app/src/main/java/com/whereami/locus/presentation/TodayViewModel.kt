@@ -8,6 +8,7 @@ import com.whereami.locus.domain.DayTime
 import com.whereami.locus.domain.LatLng
 import com.whereami.locus.domain.PathGeometry
 import com.whereami.locus.domain.TrackPoint
+import com.whereami.locus.domain.TrackingMode
 import com.whereami.locus.domain.TrackingStatus
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ data class TodayUiState(
     val lastPointAt: Long? = null,
     val lastAccuracyMeters: Float? = null,
     val trackingEnabled: Boolean = false,
+    val trackingMode: TrackingMode = TrackingMode.Foreground,
     val status: TrackingStatus = TrackingStatus.Paused,
     val speedMps: Float? = null,
     val headingDegrees: Float? = null,
@@ -57,8 +59,9 @@ class TodayViewModel(
     val uiState: StateFlow<TodayUiState> = combine(
         coreState,
         container.compassSensor.headingDegrees,
-        container.compassSensor.available
-    ) { core, heading, compassAvailable ->
+        container.compassSensor.available,
+        container.settingsStore.trackingMode
+    ) { core, heading, compassAvailable, mode ->
         val path = PathGeometry.drawablePoints(core.points)
         TodayUiState(
             points = core.points,
@@ -69,6 +72,7 @@ class TodayViewModel(
             lastPointAt = core.points.lastOrNull()?.recordedAt,
             lastAccuracyMeters = core.points.lastOrNull()?.accuracyMeters,
             trackingEnabled = core.enabled,
+            trackingMode = mode,
             status = if (core.enabled) core.status else TrackingStatus.Paused,
             speedMps = if (core.enabled) core.speed else null,
             headingDegrees = heading,
@@ -83,10 +87,14 @@ class TodayViewModel(
         }
     }
 
-    fun setSampleIntervalMs(intervalMs: Long) {
+    fun setTrackingMode(mode: TrackingMode) {
         viewModelScope.launch {
-            container.settingsStore.setSampleIntervalMs(intervalMs)
+            container.trackingController.setTrackingMode(mode)
         }
+    }
+
+    fun setSampleIntervalMs(intervalMs: Long) {
+        container.settingsStore.setSampleIntervalMs(intervalMs)
     }
 
     fun deleteAll() {

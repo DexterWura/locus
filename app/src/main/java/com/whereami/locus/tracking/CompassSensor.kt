@@ -52,14 +52,14 @@ class CompassSensor(
             sensorManager.registerListener(
                 this,
                 rotationSensor,
-                SensorManager.SENSOR_DELAY_UI
+                SensorManager.SENSOR_DELAY_NORMAL
             )
         } else {
             accelerometer?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
             }
             magnetometer?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
             }
         }
     }

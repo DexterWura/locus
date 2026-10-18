@@ -44,12 +44,15 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.whereami.locus.domain.TrackingMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     trackingEnabled: Boolean,
     onToggleTracking: (Boolean) -> Unit,
+    trackingMode: TrackingMode,
+    onTrackingModeChange: (TrackingMode) -> Unit,
     sampleIntervalMs: Long,
     onSampleIntervalChange: (Long) -> Unit,
     onDeleteAll: () -> Unit,
@@ -110,7 +113,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "When on, Locus records this phone’s path with a quiet ongoing notification.",
+                        text = "While using the app records only when Locus is open — no sticky notice. All day keeps recording in the background; Android requires a quiet ongoing notice for that.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -128,6 +131,19 @@ fun SettingsScreen(
                         Switch(
                             checked = trackingEnabled,
                             onCheckedChange = onToggleTracking
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Column(Modifier.selectableGroup()) {
+                        RowSelectable(
+                            selected = trackingMode == TrackingMode.Foreground,
+                            label = "While using the app (no notification)",
+                            onClick = { onTrackingModeChange(TrackingMode.Foreground) }
+                        )
+                        RowSelectable(
+                            selected = trackingMode == TrackingMode.Background,
+                            label = "All day in background (quiet notice)",
+                            onClick = { onTrackingModeChange(TrackingMode.Background) }
                         )
                     }
                 }
@@ -201,13 +217,13 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = "Privacy",
+                        text = "Privacy & security",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Your trail never leaves this phone. Locus has no account, no sync, and no reverse geocoding. Map tiles are pictures of the world from OpenFreeMap; your coordinates are not sent with them beyond what the map client needs to request nearby tiles.",
+                        text = "Your trail never leaves this phone. The database is encrypted (SQLCipher + Android Keystore), cloud backup is disabled, and Locus has no account, sync, or reverse geocoding. Map tiles come from OpenFreeMap; your coordinates are only used to request nearby tiles.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

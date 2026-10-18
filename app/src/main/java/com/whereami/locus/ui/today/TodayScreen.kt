@@ -214,7 +214,7 @@ private fun statusSubtitle(state: TodayUiState): String {
         return if (state.points.isEmpty()) {
             "Turn on tracking in Settings to begin today’s path"
         } else {
-            "${DayTime.formatDistance(state.distanceMeters)} today · paused"
+            "${DayTime.formatDistance(state.distanceMeters)} today · off"
         }
     }
     val distance = DayTime.formatDistance(state.distanceMeters)

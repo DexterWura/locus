@@ -22,13 +22,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class TrackingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var collectionJob: Job? = null
     private var statusJob: Job? = null
+    private var lastNotifiedStatus: TrackingStatus? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -37,7 +37,8 @@ class TrackingService : Service() {
             ACTION_STOP -> {
                 scope.launch {
                     val app = application as LocusApp
-                    app.container.trackingController.setTrackingEnabled(false)
+                    app.container.settingsStore.setTrackingEnabled(false)
+                    app.container.trackingController.stopTracking()
                     stopSelfSafely()
                 }
                 return START_NOT_STICKY
@@ -60,7 +61,7 @@ class TrackingService : Service() {
         val locationSource = app.container.locationSource
 
         collectionJob = scope.launch {
-            val interval = settings.sampleIntervalMs.first()
+            val interval = settings.sampleIntervalMs.value
             locationSource.observeLocations(interval).collectLatest { point ->
                 repository.insertPoint(point)
             }
@@ -72,6 +73,8 @@ class TrackingService : Service() {
         val locationSource = (application as LocusApp).container.locationSource
         statusJob = scope.launch {
             locationSource.status.collectLatest { status ->
+                if (status == lastNotifiedStatus) return@collectLatest
+                lastNotifiedStatus = status
                 val manager = getSystemService(NotificationManager::class.java)
                 manager.notify(NOTIFICATION_ID, buildNotification(status))
             }
@@ -81,6 +84,7 @@ class TrackingService : Service() {
     private fun startAsForeground() {
         createChannel()
         val notification = buildNotification(TrackingStatus.Moving)
+        lastNotifiedStatus = TrackingStatus.Moving
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ServiceCompat.startForeground(
                 this,
@@ -117,9 +121,11 @@ class TrackingService : Service() {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(openIntent)
             .setOngoing(true)
+            .setSilent(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .addAction(0, getString(R.string.tracking_notification_stop), stopIntent)
             .build()
     }
@@ -129,9 +135,12 @@ class TrackingService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.tracking_channel_name),
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_MIN
         ).apply {
             description = getString(R.string.tracking_channel_description)
+            setShowBadge(false)
+            enableVibration(false)
+            setSound(null, null)
         }
         manager.createNotificationChannel(channel)
     }
@@ -155,25 +164,21 @@ class TrackingService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "locus_tracking"
+        const val CHANNEL_ID = "locus_tracking_quiet"
         const val NOTIFICATION_ID = 42
         const val ACTION_STOP = "com.whereami.locus.action.STOP_TRACKING"
 
         fun start(context: Context) {
             val intent = Intent(context, TrackingService::class.java)
-            ContextCompatStartForeground(context, intent)
-        }
-
-        fun stop(context: Context) {
-            context.stopService(Intent(context, TrackingService::class.java))
-        }
-
-        private fun ContextCompatStartForeground(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
+        }
+
+        fun stop(context: Context) {
+            context.stopService(Intent(context, TrackingService::class.java))
         }
     }
 }

@@ -58,7 +58,7 @@ fun LocusNavHost(
     val recoveryQuestions by authViewModel.recoveryQuestions.collectAsStateWithLifecycle()
     val recoveryAuthorized by authViewModel.recoveryAuthorized.collectAsStateWithLifecycle()
 
-    if (onboardingComplete == null || gate.loading) {
+    if (gate.loading) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
@@ -67,13 +67,13 @@ fun LocusNavHost(
 
     val navController = rememberNavController()
     val startDestination = when {
-        onboardingComplete != true -> Routes.Onboarding
+        !onboardingComplete -> Routes.Onboarding
         gate.passwordSet && !gate.unlocked -> Routes.Lock
         else -> Routes.Today
     }
 
     LaunchedEffect(gate.unlocked, gate.passwordSet, onboardingComplete) {
-        if (onboardingComplete == true && gate.passwordSet && !gate.unlocked) {
+        if (onboardingComplete && gate.passwordSet && !gate.unlocked) {
             val current = navController.currentDestination?.route
             if (current != Routes.Lock && current != Routes.Recover && current != Routes.Onboarding) {
                 navController.navigate(Routes.Lock) {
@@ -199,6 +199,8 @@ fun LocusNavHost(
             SettingsScreen(
                 trackingEnabled = state.trackingEnabled,
                 onToggleTracking = todayViewModel::setTrackingEnabled,
+                trackingMode = state.trackingMode,
+                onTrackingModeChange = todayViewModel::setTrackingMode,
                 sampleIntervalMs = state.sampleIntervalMs,
                 onSampleIntervalChange = todayViewModel::setSampleIntervalMs,
                 onDeleteAll = todayViewModel::deleteAll,

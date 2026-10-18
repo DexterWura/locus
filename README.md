@@ -13,9 +13,11 @@ Inspired by the calm full-screen map and bottom sheet of Google Find My Device �
 - **History** — day list with distance, time span, and canvas path thumbnails
 - **Day detail** — animated path plus trip/stop timeline; name places locally
 - **Tracking toggle** — turn path recording on/off in Settings
+- **Tracking modes** — while using the app (no sticky notice) or all-day background (quiet required notice)
+- **Encrypted at rest** — SQLCipher trail DB, encrypted prefs, Android Keystore; cloud backup disabled
 - **Local lock** — password set during onboarding; app locks when it leaves the foreground
 - **Local recovery** — security questions and a one-time recovery phrase (nothing is emailed)
-- **Battery-aware sampling** — ~5s / 8m while moving; relaxes when still
+- **Battery-aware sampling** — ~5s while moving; relaxes when still to cut heat
 
 ## Privacy
 

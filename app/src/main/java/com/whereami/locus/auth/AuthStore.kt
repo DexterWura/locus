@@ -1,16 +1,13 @@
 package com.whereami.locus.auth
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-
-private val Context.authDataStore: DataStore<Preferences> by preferencesDataStore(name = "locus_auth")
+import android.content.SharedPreferences
+import com.whereami.locus.data.security.EncryptedPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
 data class StoredAuth(
     val passwordSalt: ByteArray,
@@ -24,32 +21,23 @@ data class StoredAuth(
     val recoveryPhraseHash: ByteArray
 )
 
-class AuthStore(private val context: Context) {
-    private val passwordSaltKey = stringPreferencesKey("password_salt")
-    private val passwordHashKey = stringPreferencesKey("password_hash")
-    private val answerSaltKey = stringPreferencesKey("answer_salt")
-    private val question1Key = stringPreferencesKey("question_1_id")
-    private val question2Key = stringPreferencesKey("question_2_id")
-    private val answer1HashKey = stringPreferencesKey("answer_1_hash")
-    private val answer2HashKey = stringPreferencesKey("answer_2_hash")
-    private val recoverySaltKey = stringPreferencesKey("recovery_salt")
-    private val recoveryPhraseHashKey = stringPreferencesKey("recovery_phrase_hash")
+class AuthStore(context: Context) {
+    private val prefs: SharedPreferences =
+        EncryptedPrefs.create(context.applicationContext, PREFS_NAME)
 
-    val isPasswordSet: Flow<Boolean> = context.authDataStore.data.map { prefs ->
-        !prefs[passwordHashKey].isNullOrBlank()
-    }
+    private val _isPasswordSet = MutableStateFlow(prefs.contains(KEY_PASSWORD_HASH))
+    val isPasswordSet: StateFlow<Boolean> = _isPasswordSet.asStateFlow()
 
-    suspend fun getStoredAuth(): StoredAuth? {
-        val prefs = context.authDataStore.data.first()
-        val passwordSalt = prefs[passwordSaltKey] ?: return null
-        val passwordHash = prefs[passwordHashKey] ?: return null
-        val answerSalt = prefs[answerSaltKey] ?: return null
-        val q1 = prefs[question1Key] ?: return null
-        val q2 = prefs[question2Key] ?: return null
-        val a1 = prefs[answer1HashKey] ?: return null
-        val a2 = prefs[answer2HashKey] ?: return null
-        val recoverySalt = prefs[recoverySaltKey] ?: return null
-        val recoveryHash = prefs[recoveryPhraseHashKey] ?: return null
+    fun getStoredAuth(): StoredAuth? {
+        val passwordSalt = prefs.getString(KEY_PASSWORD_SALT, null) ?: return null
+        val passwordHash = prefs.getString(KEY_PASSWORD_HASH, null) ?: return null
+        val answerSalt = prefs.getString(KEY_ANSWER_SALT, null) ?: return null
+        val q1 = prefs.getString(KEY_QUESTION_1, null) ?: return null
+        val q2 = prefs.getString(KEY_QUESTION_2, null) ?: return null
+        val a1 = prefs.getString(KEY_ANSWER_1_HASH, null) ?: return null
+        val a2 = prefs.getString(KEY_ANSWER_2_HASH, null) ?: return null
+        val recoverySalt = prefs.getString(KEY_RECOVERY_SALT, null) ?: return null
+        val recoveryHash = prefs.getString(KEY_RECOVERY_HASH, null) ?: return null
         return StoredAuth(
             passwordSalt = PasswordCrypto.decode(passwordSalt),
             passwordHash = PasswordCrypto.decode(passwordHash),
@@ -70,75 +58,101 @@ class AuthStore(private val context: Context) {
         answer1: String,
         answer2: String,
         recoveryPhrase: String
-    ) {
+    ) = withContext(Dispatchers.Default) {
         val passwordSalt = PasswordCrypto.generateSalt()
         val answerSalt = PasswordCrypto.generateSalt()
         val recoverySalt = PasswordCrypto.generateSalt()
-        context.authDataStore.edit { prefs ->
-            prefs[passwordSaltKey] = PasswordCrypto.encode(passwordSalt)
-            prefs[passwordHashKey] = PasswordCrypto.encode(
-                PasswordCrypto.hashSecret(password, passwordSalt)
+        prefs.edit()
+            .putString(KEY_PASSWORD_SALT, PasswordCrypto.encode(passwordSalt))
+            .putString(
+                KEY_PASSWORD_HASH,
+                PasswordCrypto.encode(PasswordCrypto.hashSecret(password, passwordSalt))
             )
-            prefs[answerSaltKey] = PasswordCrypto.encode(answerSalt)
-            prefs[question1Key] = question1Id
-            prefs[question2Key] = question2Id
-            prefs[answer1HashKey] = PasswordCrypto.encode(
-                PasswordCrypto.hashSecret(PasswordCrypto.normalizeAnswer(answer1), answerSalt)
-            )
-            prefs[answer2HashKey] = PasswordCrypto.encode(
-                PasswordCrypto.hashSecret(PasswordCrypto.normalizeAnswer(answer2), answerSalt)
-            )
-            prefs[recoverySaltKey] = PasswordCrypto.encode(recoverySalt)
-            prefs[recoveryPhraseHashKey] = PasswordCrypto.encode(
-                PasswordCrypto.hashSecret(
-                    PasswordCrypto.normalizePhrase(recoveryPhrase),
-                    recoverySalt
+            .putString(KEY_ANSWER_SALT, PasswordCrypto.encode(answerSalt))
+            .putString(KEY_QUESTION_1, question1Id)
+            .putString(KEY_QUESTION_2, question2Id)
+            .putString(
+                KEY_ANSWER_1_HASH,
+                PasswordCrypto.encode(
+                    PasswordCrypto.hashSecret(PasswordCrypto.normalizeAnswer(answer1), answerSalt)
                 )
             )
+            .putString(
+                KEY_ANSWER_2_HASH,
+                PasswordCrypto.encode(
+                    PasswordCrypto.hashSecret(PasswordCrypto.normalizeAnswer(answer2), answerSalt)
+                )
+            )
+            .putString(KEY_RECOVERY_SALT, PasswordCrypto.encode(recoverySalt))
+            .putString(
+                KEY_RECOVERY_HASH,
+                PasswordCrypto.encode(
+                    PasswordCrypto.hashSecret(
+                        PasswordCrypto.normalizePhrase(recoveryPhrase),
+                        recoverySalt
+                    )
+                )
+            )
+            .apply()
+        _isPasswordSet.value = true
+    }
+
+    suspend fun verifyPassword(password: String): Boolean = withContext(Dispatchers.Default) {
+        val stored = getStoredAuth() ?: return@withContext false
+        PasswordCrypto.matches(password, stored.passwordSalt, stored.passwordHash)
+    }
+
+    suspend fun verifySecurityAnswers(answer1: String, answer2: String): Boolean =
+        withContext(Dispatchers.Default) {
+            val stored = getStoredAuth() ?: return@withContext false
+            val ok1 = PasswordCrypto.matches(
+                PasswordCrypto.normalizeAnswer(answer1),
+                stored.answerSalt,
+                stored.answer1Hash
+            )
+            val ok2 = PasswordCrypto.matches(
+                PasswordCrypto.normalizeAnswer(answer2),
+                stored.answerSalt,
+                stored.answer2Hash
+            )
+            ok1 && ok2
         }
-    }
 
-    suspend fun verifyPassword(password: String): Boolean {
-        val stored = getStoredAuth() ?: return false
-        return PasswordCrypto.matches(password, stored.passwordSalt, stored.passwordHash)
-    }
-
-    suspend fun verifySecurityAnswers(answer1: String, answer2: String): Boolean {
-        val stored = getStoredAuth() ?: return false
-        val ok1 = PasswordCrypto.matches(
-            PasswordCrypto.normalizeAnswer(answer1),
-            stored.answerSalt,
-            stored.answer1Hash
-        )
-        val ok2 = PasswordCrypto.matches(
-            PasswordCrypto.normalizeAnswer(answer2),
-            stored.answerSalt,
-            stored.answer2Hash
-        )
-        return ok1 && ok2
-    }
-
-    suspend fun verifyRecoveryPhrase(phrase: String): Boolean {
-        val stored = getStoredAuth() ?: return false
-        return PasswordCrypto.matches(
+    suspend fun verifyRecoveryPhrase(phrase: String): Boolean = withContext(Dispatchers.Default) {
+        val stored = getStoredAuth() ?: return@withContext false
+        PasswordCrypto.matches(
             PasswordCrypto.normalizePhrase(phrase),
             stored.recoverySalt,
             stored.recoveryPhraseHash
         )
     }
 
-    suspend fun updatePassword(newPassword: String) {
+    suspend fun updatePassword(newPassword: String) = withContext(Dispatchers.Default) {
         val passwordSalt = PasswordCrypto.generateSalt()
-        context.authDataStore.edit { prefs ->
-            prefs[passwordSaltKey] = PasswordCrypto.encode(passwordSalt)
-            prefs[passwordHashKey] = PasswordCrypto.encode(
-                PasswordCrypto.hashSecret(newPassword, passwordSalt)
+        prefs.edit()
+            .putString(KEY_PASSWORD_SALT, PasswordCrypto.encode(passwordSalt))
+            .putString(
+                KEY_PASSWORD_HASH,
+                PasswordCrypto.encode(PasswordCrypto.hashSecret(newPassword, passwordSalt))
             )
-        }
+            .apply()
     }
 
-    suspend fun questionIds(): Pair<String, String>? {
+    fun questionIds(): Pair<String, String>? {
         val stored = getStoredAuth() ?: return null
         return stored.question1Id to stored.question2Id
+    }
+
+    companion object {
+        private const val PREFS_NAME = "locus_auth_secure"
+        private const val KEY_PASSWORD_SALT = "password_salt"
+        private const val KEY_PASSWORD_HASH = "password_hash"
+        private const val KEY_ANSWER_SALT = "answer_salt"
+        private const val KEY_QUESTION_1 = "question_1_id"
+        private const val KEY_QUESTION_2 = "question_2_id"
+        private const val KEY_ANSWER_1_HASH = "answer_1_hash"
+        private const val KEY_ANSWER_2_HASH = "answer_2_hash"
+        private const val KEY_RECOVERY_SALT = "recovery_salt"
+        private const val KEY_RECOVERY_HASH = "recovery_phrase_hash"
     }
 }

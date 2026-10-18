@@ -8,6 +8,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
@@ -33,6 +34,7 @@ class LocationSource(
 ) {
     private val locationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val motionClassifier = MotionClassifier(
         stillAfterMs = SettingsStore.STILL_AFTER_MS
@@ -46,6 +48,10 @@ class LocationSource(
 
     private var lastAccepted: Location? = null
     private var lastAcceptedAtElapsed: Long = 0L
+    private var activeProvider: String? = null
+    private var activeListener: LocationListener? = null
+    private var currentRequestStill: Boolean? = null
+    private var sampleIntervalMs: Long = SettingsStore.DEFAULT_SAMPLE_INTERVAL_MS
 
     fun observeLocations(sampleIntervalMs: Long): Flow<TrackPoint> = callbackFlow {
         if (!hasFineLocationPermission()) {
@@ -54,11 +60,13 @@ class LocationSource(
             return@callbackFlow
         }
 
+        this@LocationSource.sampleIntervalMs = sampleIntervalMs
         val now = SystemClock.elapsedRealtime()
         motionClassifier.reset(now)
         publishStatus(motionClassifier.status())
         lastAccepted = null
         lastAcceptedAtElapsed = 0L
+        currentRequestStill = null
 
         val listener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
@@ -74,6 +82,7 @@ class LocationSource(
                     nowElapsed = elapsed
                 )
                 publishStatus(motion)
+                adaptRequestIfNeeded(motion)
 
                 val accepted = maybeAcceptForStorage(location, sampleIntervalMs, motion) ?: return
                 trySend(accepted.toTrackPoint())
@@ -96,16 +105,10 @@ class LocationSource(
             return@callbackFlow
         }
 
-        // minDistance = 0 so we keep receiving fixes while stationary and can flip to Still.
-        val pollIntervalMs = minOf(sampleIntervalMs, 5_000L).coerceAtLeast(2_000L)
+        activeProvider = provider
+        activeListener = listener
         try {
-            locationManager.requestLocationUpdates(
-                provider,
-                pollIntervalMs,
-                0f,
-                listener,
-                Looper.getMainLooper()
-            )
+            requestUpdates(stillMode = false)
             locationManager.getLastKnownLocation(provider)?.let { last ->
                 listener.onLocationChanged(last)
             }
@@ -119,21 +122,60 @@ class LocationSource(
 
         awaitClose {
             heartbeatJob.cancel()
-            locationManager.removeUpdates(listener)
+            activeListener?.let { locationManager.removeUpdates(it) }
+            activeListener = null
+            activeProvider = null
+            currentRequestStill = null
             publishPaused()
             _speedMps.value = null
         }
     }
 
+    private fun adaptRequestIfNeeded(motion: TrackingStatus) {
+        val wantStill = motion == TrackingStatus.Still
+        if (currentRequestStill == wantStill) return
+        requestUpdates(stillMode = wantStill)
+    }
+
+    private fun requestUpdates(stillMode: Boolean) {
+        val provider = activeProvider ?: return
+        val listener = activeListener ?: return
+        if (!hasFineLocationPermission()) return
+        try {
+            locationManager.removeUpdates(listener)
+            val minTime = if (stillMode) {
+                SettingsStore.STILL_SAMPLE_INTERVAL_MS
+            } else {
+                minOf(sampleIntervalMs, 5_000L).coerceAtLeast(3_000L)
+            }
+            val minDistance = if (stillMode) {
+                SettingsStore.STILL_MIN_DISPLACEMENT_METERS
+            } else {
+                SettingsStore.MOVING_MIN_DISTANCE_METERS
+            }
+            locationManager.requestLocationUpdates(
+                provider,
+                minTime,
+                minDistance,
+                listener,
+                Looper.getMainLooper()
+            )
+            currentRequestStill = stillMode
+        } catch (_: SecurityException) {
+            publishPaused()
+        }
+    }
+
     private fun CoroutineScope.launchHeartbeat(): Job = launch(Dispatchers.Default) {
         while (isActive) {
-            delay(3_000L)
+            delay(12_000L)
             val next = motionClassifier.onTick(SystemClock.elapsedRealtime())
             if (next != TrackingStatus.Paused) {
                 publishStatus(next)
                 if (next == TrackingStatus.Still) {
                     _speedMps.value = 0f
                 }
+                mainHandler.post { adaptRequestIfNeeded(next) }
             }
         }
     }
@@ -177,11 +219,6 @@ class LocationSource(
             }
             val movedEnough = distance >= SettingsStore.MIN_DISPLACEMENT_METERS
             if (!movedEnough && elapsedSinceAccept < requiredInterval) {
-                return null
-            }
-            if (motion == TrackingStatus.Still && !movedEnough &&
-                elapsedSinceAccept < SettingsStore.STILL_SAMPLE_INTERVAL_MS
-            ) {
                 return null
             }
         }
