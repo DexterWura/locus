@@ -1,5 +1,6 @@
 *.iml
 .gradle/
+.kotlin/
 /local.properties
 /.idea/
 .DS_Store
@@ -11,3 +12,6 @@
 *.apk
 *.ap_
 *.aab
+keystore.properties
+*.jks
+*.keystore

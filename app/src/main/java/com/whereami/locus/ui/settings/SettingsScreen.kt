@@ -1,5 +1,9 @@
 package com.whereami.locus.ui.settings
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,11 +44,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.whereami.locus.domain.TrackingMode
+import com.whereami.locus.tracking.LocationPermissions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,10 +70,13 @@ fun SettingsScreen(
         confirm: String,
         onSuccess: () -> Unit
     ) -> Unit,
+    onOpenPrivacy: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
     var showChangePassword by remember { mutableStateOf(false) }
+    var showBackgroundDisclosure by remember { mutableStateOf(false) }
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -77,6 +86,45 @@ fun SettingsScreen(
         10_000L to "Every 10 seconds",
         30_000L to "Every 30 seconds"
     )
+
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            onTrackingModeChange(TrackingMode.Background)
+        }
+    }
+    val fineThenBackgroundLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted.values.any { it }) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            } else {
+                onTrackingModeChange(TrackingMode.Background)
+            }
+        }
+    }
+
+    fun requestBackgroundAccess() {
+        when {
+            LocationPermissions.hasBackground(context) -> {
+                onTrackingModeChange(TrackingMode.Background)
+            }
+            !LocationPermissions.hasFine(context) -> {
+                fineThenBackgroundLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            else -> onTrackingModeChange(TrackingMode.Background)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -113,7 +161,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "While using the app records only when Locus is open — no sticky notice. All day keeps recording in the background; Android requires a quiet ongoing notice for that.",
+                        text = "While using the app records only when Locus is open — no sticky notice. All day keeps recording in the background; Android requires an ongoing notice for that.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -142,8 +190,14 @@ fun SettingsScreen(
                         )
                         RowSelectable(
                             selected = trackingMode == TrackingMode.Background,
-                            label = "All day in background (quiet notice)",
-                            onClick = { onTrackingModeChange(TrackingMode.Background) }
+                            label = "All day in background (ongoing notice)",
+                            onClick = {
+                                if (LocationPermissions.hasBackground(context)) {
+                                    onTrackingModeChange(TrackingMode.Background)
+                                } else {
+                                    showBackgroundDisclosure = true
+                                }
+                            }
                         )
                     }
                 }
@@ -223,10 +277,18 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Your trail never leaves this phone. The database is encrypted (SQLCipher + Android Keystore), cloud backup is disabled, and Locus has no account, sync, or reverse geocoding. Map tiles come from OpenFreeMap; your coordinates are only used to request nearby tiles.",
+                        text = "Your trail never leaves this phone. The database is encrypted (SQLCipher + Android Keystore), cloud backup is disabled, and Locus has no account or sync. Map tiles come from OpenFreeMap over HTTPS.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onOpenPrivacy,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Privacy policy")
+                    }
                 }
             }
 
@@ -244,6 +306,31 @@ fun SettingsScreen(
                 Text("Delete all trail data")
             }
         }
+    }
+
+    if (showBackgroundDisclosure) {
+        AlertDialog(
+            onDismissRequest = { showBackgroundDisclosure = false },
+            title = { Text("Background location") },
+            text = {
+                Text(
+                    "Locus collects location data to record your day trail even when the app is closed or not in use. " +
+                        "Data stays on this phone. Map tiles may load near your position over HTTPS. " +
+                        "An ongoing notification stays visible while all-day tracking is on."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBackgroundDisclosure = false
+                        requestBackgroundAccess()
+                    }
+                ) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBackgroundDisclosure = false }) { Text("Not now") }
+            }
+        )
     }
 
     if (confirmDelete) {
@@ -346,7 +433,7 @@ private fun RowSelectable(
     label: String,
     onClick: () -> Unit
 ) {
-    androidx.compose.foundation.layout.Row(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .selectable(

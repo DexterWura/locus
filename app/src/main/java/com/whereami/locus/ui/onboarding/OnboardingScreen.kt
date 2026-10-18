@@ -4,10 +4,10 @@ import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.whereami.locus.privacy.PrivacyUrls
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -137,13 +137,16 @@ fun OnboardingScreen(
 
     val fineLocationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissionStep = 1 }
+    ) { granted ->
+        if (granted.values.any { it }) {
+            permissionStep = 1
+        }
+    }
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { permissionStep = 2 }
-    val backgroundLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { permissionStep = 3 }
+    ) {
+        permissionStep = 2
+    }
 
     Column(
         modifier = Modifier
@@ -290,26 +293,13 @@ fun OnboardingScreen(
                             permissionStep = 2
                         }
                     },
-                    onRequestBackground = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                        } else {
-                            permissionStep = 3
-                        }
+                    onFinish = onFinished,
+                    onSkipNotifications = { permissionStep = 2 },
+                    onOpenPrivacy = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(PrivacyUrls.POLICY))
+                        )
                     },
-                    onOpenBatterySettings = {
-                        val pm = context.getSystemService(PowerManager::class.java)
-                        if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
-                            val intent = Intent(
-                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                            ).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            }
-                            context.startActivity(intent)
-                        }
-                        onFinished()
-                    },
-                    onSkipBattery = onFinished,
                     onOpenAppSettings = {
                         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                             data = Uri.parse("package:${context.packageName}")
@@ -615,31 +605,26 @@ private fun PermissionStepContent(
     step: Int,
     onRequestFineLocation: () -> Unit,
     onRequestNotification: () -> Unit,
-    onRequestBackground: () -> Unit,
-    onOpenBatterySettings: () -> Unit,
-    onSkipBattery: () -> Unit,
+    onFinish: () -> Unit,
+    onSkipNotifications: () -> Unit,
+    onOpenPrivacy: () -> Unit,
     onOpenAppSettings: () -> Unit
 ) {
     val (title, body, primary) = when (step) {
         0 -> Triple(
             "Precise location",
-            "Waiting for the system permission. If the dialog closed, tap below to ask again.",
+            "Locus uses precise location to draw your day trail on this phone. Map tiles may load near the area you view. Deny only if you want to explore the app without recording.",
             "Allow precise location"
         )
         1 -> Triple(
             "Allow notifications",
-            "Android needs this so Locus can show the ongoing tracking notice. It stays quiet and low priority.",
+            "Needed if you later turn on all-day background tracking, so Android can show the required ongoing notice. You can skip this for now.",
             "Allow notifications"
         )
-        2 -> Triple(
-            "Allow all-the-time location",
-            "Background location lets Locus keep the day trail when the screen is off. Android opens a settings screen for this.",
-            "Open location settings"
-        )
         else -> Triple(
-            "Optional: ignore battery limits",
-            "Some phones pause GPS apps aggressively. You can allow Locus to ignore battery optimizations for more reliable all-day tracking.",
-            "Allow for Locus"
+            "You’re ready",
+            "Tracking defaults to while you use the app — no sticky notice. All-day background location is optional later in Settings, with a clear disclosure first. Read the privacy policy anytime.",
+            "Start using Locus"
         )
     }
 
@@ -667,8 +652,7 @@ private fun PermissionStepContent(
                 when (step) {
                     0 -> onRequestFineLocation()
                     1 -> onRequestNotification()
-                    2 -> onRequestBackground()
-                    else -> onOpenBatterySettings()
+                    else -> onFinish()
                 }
             },
             modifier = Modifier
@@ -678,21 +662,26 @@ private fun PermissionStepContent(
         ) {
             Text(primary)
         }
-        if (step == 2) {
+        if (step == 0) {
             TextButton(onClick = onOpenAppSettings) {
-                Text("Open app settings instead")
+                Text("Open app settings")
             }
         }
-        if (step >= 3) {
+        if (step == 1) {
             OutlinedButton(
-                onClick = onSkipBattery,
+                onClick = onSkipNotifications,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
                     .height(52.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("Skip for now")
+                Text("Skip notifications")
+            }
+        }
+        if (step >= 2) {
+            TextButton(onClick = onOpenPrivacy) {
+                Text("Privacy policy")
             }
         }
     }

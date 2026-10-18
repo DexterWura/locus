@@ -121,10 +121,9 @@ class TrackingService : Service() {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(openIntent)
             .setOngoing(true)
-            .setSilent(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .addAction(0, getString(R.string.tracking_notification_stop), stopIntent)
             .build()
@@ -135,7 +134,7 @@ class TrackingService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.tracking_channel_name),
-            NotificationManager.IMPORTANCE_MIN
+            NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = getString(R.string.tracking_channel_description)
             setShowBadge(false)
@@ -164,7 +163,7 @@ class TrackingService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "locus_tracking_quiet"
+        const val CHANNEL_ID = "locus_tracking"
         const val NOTIFICATION_ID = 42
         const val ACTION_STOP = "com.whereami.locus.action.STOP_TRACKING"
 

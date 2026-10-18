@@ -26,6 +26,7 @@ import com.whereami.locus.ui.auth.RecoveryScreen
 import com.whereami.locus.ui.history.DayDetailScreen
 import com.whereami.locus.ui.history.HistoryScreen
 import com.whereami.locus.ui.onboarding.OnboardingScreen
+import com.whereami.locus.ui.privacy.PrivacyPolicyScreen
 import com.whereami.locus.ui.settings.SettingsScreen
 import com.whereami.locus.ui.today.TodayScreen
 
@@ -37,6 +38,7 @@ object Routes {
     const val History = "history"
     const val DayDetail = "day/{dayStart}"
     const val Settings = "settings"
+    const val Privacy = "privacy"
 
     fun dayDetail(dayStart: Long) = "day/$dayStart"
 }
@@ -209,8 +211,12 @@ fun LocusNavHost(
                 onChangePassword = { current, newPassword, confirm, onSuccess ->
                     authViewModel.changePassword(current, newPassword, confirm, onSuccess)
                 },
+                onOpenPrivacy = { navController.navigate(Routes.Privacy) },
                 onBack = { navController.popBackStack() }
             )
+        }
+        composable(Routes.Privacy) {
+            PrivacyPolicyScreen(onBack = { navController.popBackStack() })
         }
     }
 }

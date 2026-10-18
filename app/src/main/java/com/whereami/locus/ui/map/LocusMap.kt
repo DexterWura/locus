@@ -141,7 +141,7 @@ fun LocusMap(
                     mapView.onCreate(null)
                     mapViewRef = mapView
                     mapView.getMapAsync { map ->
-                        map.uiSettings.isLogoEnabled = false
+                        map.uiSettings.isLogoEnabled = true
                         map.uiSettings.isAttributionEnabled = true
                         map.uiSettings.isCompassEnabled = false
                         map.setStyle(Style.Builder().fromUri(STYLE_URI)) { style ->

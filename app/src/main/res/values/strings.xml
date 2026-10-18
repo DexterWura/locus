@@ -5,5 +5,6 @@
     <string name="tracking_notification_text">Your trail stays on this phone.</string>
     <string name="tracking_notification_stop">Stop</string>
     <string name="tracking_channel_name">Path tracking</string>
-    <string name="tracking_channel_description">Shown while Locus records your day.</string>
+    <string name="tracking_channel_description">Shown while Locus records your day trail in the background.</string>
+    <string name="privacy_policy_url">https://github.com/DexterWura/locus/blob/master/PRIVACY.md</string>
 </resources>

@@ -54,11 +54,15 @@ class TrackingControllerImpl(
         when (settingsStore.trackingMode.value) {
             TrackingMode.Background -> {
                 foregroundTracker.stop()
-                TrackingService.start(context.applicationContext)
+                if (LocationPermissions.hasFine(context)) {
+                    TrackingService.start(context.applicationContext)
+                }
             }
             TrackingMode.Foreground -> {
                 TrackingService.stop(context.applicationContext)
-                foregroundTracker.start()
+                if (LocationPermissions.hasFine(context)) {
+                    foregroundTracker.start()
+                }
             }
         }
     }
@@ -86,7 +90,11 @@ class TrackingControllerImpl(
         appScope.launch {
             if (!settingsStore.trackingEnabled.value) return@launch
             when (settingsStore.trackingMode.value) {
-                TrackingMode.Background -> TrackingService.start(context.applicationContext)
+                TrackingMode.Background -> {
+                    if (LocationPermissions.hasFine(context)) {
+                        TrackingService.start(context.applicationContext)
+                    }
+                }
                 TrackingMode.Foreground -> {
                     // Wait for MainActivity onStart to begin collecting.
                 }
