@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -171,7 +172,7 @@ fun LocusMap(
 
 @Composable
 private fun MapLifecycle(mapView: MapView?) {
-    androidx.compose.runtime.DisposableEffect(mapView) {
+    DisposableEffect(mapView) {
         mapView?.onStart()
         mapView?.onResume()
         onDispose {

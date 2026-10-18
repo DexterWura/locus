@@ -1,6 +1,8 @@
 package com.whereami.locus
 
 import android.content.Context
+import com.whereami.locus.auth.AuthSession
+import com.whereami.locus.auth.AuthStore
 import com.whereami.locus.data.SettingsStore
 import com.whereami.locus.data.TrackRepositoryImpl
 import com.whereami.locus.data.db.LocusDatabase
@@ -14,6 +16,8 @@ class AppContainer(context: Context) {
     private val database = LocusDatabase.get(appContext)
 
     val settingsStore = SettingsStore(appContext)
+    val authStore = AuthStore(appContext)
+    val authSession = AuthSession().also { it.observeProcessLifecycle() }
     val trackRepository: TrackRepository = TrackRepositoryImpl(database)
     val locationSource = LocationSource(appContext)
     val trackingController: TrackingController = TrackingControllerImpl(

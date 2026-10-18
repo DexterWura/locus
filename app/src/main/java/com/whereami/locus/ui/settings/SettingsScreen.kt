@@ -23,6 +23,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,9 +49,22 @@ fun SettingsScreen(
     sampleIntervalMs: Long,
     onSampleIntervalChange: (Long) -> Unit,
     onDeleteAll: () -> Unit,
+    authError: String?,
+    onClearAuthError: () -> Unit,
+    onChangePassword: (
+        current: String,
+        newPassword: String,
+        confirm: String,
+        onSuccess: () -> Unit
+    ) -> Unit,
     onBack: () -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
+    var showChangePassword by remember { mutableStateOf(false) }
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var passwordChanged by remember { mutableStateOf(false) }
     val options = listOf(
         5_000L to "Every 5 seconds (default)",
         10_000L to "Every 10 seconds",
@@ -113,6 +129,40 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
+                        text = "Password",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Your password and recovery options live only on this phone. If you forget both your password and recovery phrase, and cannot answer your security questions, Locus cannot reset access for you.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            passwordChanged = false
+                            currentPassword = ""
+                            newPassword = ""
+                            confirmPassword = ""
+                            onClearAuthError()
+                            showChangePassword = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Change password")
+                    }
+                }
+            }
+
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
                         text = "Privacy",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
@@ -159,6 +209,78 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showChangePassword) {
+        AlertDialog(
+            onDismissRequest = { showChangePassword = false },
+            title = { Text("Change password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = currentPassword,
+                        onValueChange = {
+                            currentPassword = it
+                            onClearAuthError()
+                            passwordChanged = false
+                        },
+                        label = { Text("Current password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = {
+                            newPassword = it
+                            onClearAuthError()
+                            passwordChanged = false
+                        },
+                        label = { Text("New password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = {
+                            confirmPassword = it
+                            onClearAuthError()
+                            passwordChanged = false
+                        },
+                        label = { Text("Confirm new password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    if (authError != null) {
+                        Text(authError, color = MaterialTheme.colorScheme.error)
+                    }
+                    if (passwordChanged && authError == null) {
+                        Text(
+                            "Password updated.",
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onChangePassword(
+                            currentPassword,
+                            newPassword,
+                            confirmPassword
+                        ) {
+                            passwordChanged = true
+                            currentPassword = ""
+                            newPassword = ""
+                            confirmPassword = ""
+                        }
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChangePassword = false }) { Text("Close") }
             }
         )
     }

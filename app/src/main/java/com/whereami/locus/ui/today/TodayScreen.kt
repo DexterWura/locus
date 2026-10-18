@@ -3,6 +3,7 @@ package com.whereami.locus.ui.today
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,37 +16,38 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.whereami.locus.domain.DayTime
 import com.whereami.locus.domain.TrackingStatus
 import com.whereami.locus.presentation.TodayUiState
+import com.whereami.locus.ui.components.BottomSheetCard
+import com.whereami.locus.ui.components.RoundIconButton
 import com.whereami.locus.ui.map.LocusMap
+import com.whereami.locus.ui.theme.LocatorBlue
+import com.whereami.locus.ui.theme.MovingGreen
+import com.whereami.locus.ui.theme.StillAmber
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
     state: TodayUiState,
@@ -85,7 +87,7 @@ fun TodayScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                .padding(end = 20.dp, bottom = 220.dp),
+                .padding(end = 20.dp, bottom = 232.dp),
             shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.primary
@@ -110,43 +112,33 @@ fun TodayScreen(
 }
 
 @Composable
-private fun RoundIconButton(
-    onClick: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        shadowElevation = 4.dp
-    ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(48.dp), content = content)
-    }
-}
-
-@Composable
 private fun TodaySheet(
     state: TodayUiState,
     onToggleTracking: (Boolean) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
+    BottomSheetCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = statusLabel(state.status),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(statusColor(state.status))
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = statusLabel(state.status),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = if (state.points.isEmpty()) {
                             "Start tracking to begin today’s path"
@@ -207,4 +199,10 @@ private fun statusLabel(status: TrackingStatus): String = when (status) {
     TrackingStatus.Moving -> "Moving"
     TrackingStatus.Still -> "Still"
     TrackingStatus.Paused -> "Paused"
+}
+
+private fun statusColor(status: TrackingStatus): Color = when (status) {
+    TrackingStatus.Moving -> MovingGreen
+    TrackingStatus.Still -> StillAmber
+    TrackingStatus.Paused -> LocatorBlue.copy(alpha = 0.45f)
 }

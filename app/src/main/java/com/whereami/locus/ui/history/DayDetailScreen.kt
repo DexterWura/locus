@@ -13,20 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +36,8 @@ import com.whereami.locus.domain.DayDetail
 import com.whereami.locus.domain.DayTime
 import com.whereami.locus.domain.LatLng
 import com.whereami.locus.domain.TimelineItem
+import com.whereami.locus.ui.components.BottomSheetCard
+import com.whereami.locus.ui.components.RoundIconButton
 import com.whereami.locus.ui.map.LocusMap
 
 @Composable
@@ -59,37 +55,27 @@ fun DayDetailScreen(
                 currentPosition = detail.drawablePoints.lastOrNull(),
                 animatePath = true,
                 fitToPath = true,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 280.dp)
+                modifier = Modifier.fillMaxSize()
             )
         }
 
-        Surface(
+        RoundIconButton(
             onClick = onBack,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-            shadowElevation = 4.dp,
             modifier = Modifier
                 .statusBarsPadding()
                 .padding(16.dp)
                 .align(Alignment.TopStart)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-            }
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
         }
 
-        Card(
+        BottomSheetCard(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(16.dp)
                 .fillMaxWidth()
-                .height(300.dp),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                .height(300.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -103,15 +89,13 @@ fun DayDetailScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.height(12.dp))
-                if (detail == null) {
-                    Text("Loading…")
-                } else if (detail.timeline.isEmpty()) {
-                    Text(
+                when {
+                    detail == null -> Text("Loading…")
+                    detail.timeline.isEmpty() -> Text(
                         text = "Not enough points for a timeline yet.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(detail.timeline) { item ->
                             when (item) {
                                 is TimelineItem.Stop -> StopRow(
