@@ -15,7 +15,7 @@ Inspired by the calm full-screen map and bottom sheet of Google Find My Device �
 - **Tracking toggle** — turn path recording on/off in Settings
 - **Tracking modes** — while using the app (no sticky notice) or all-day background (quiet required notice)
 - **Encrypted at rest** — SQLCipher trail DB, encrypted prefs, Android Keystore; cloud backup disabled
-- **Local lock** — password set during onboarding; app locks when it leaves the foreground
+- **Local lock** — password set during onboarding; stays unlocked ~10 minutes after you leave the app
 - **Local recovery** — security questions and a one-time recovery phrase (nothing is emailed)
 - **Battery-aware sampling** — ~5s while moving; relaxes when still to cut heat
 
@@ -33,7 +33,7 @@ If you forget your password **and** cannot answer the security questions **and**
 
 - Kotlin, Jetpack Compose, Material 3
 - MapLibre + [OpenFreeMap](https://openfreemap.org/) Liberty style (no API key)
-- Room (trail), DataStore (settings + auth)
+- Room + SQLCipher (trail), EncryptedSharedPreferences (settings + auth)
 - Platform `LocationManager` (no Play Services Geocoder)
 
 minSdk 29 · targetSdk 36

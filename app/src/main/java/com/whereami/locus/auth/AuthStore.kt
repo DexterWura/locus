@@ -3,6 +3,7 @@ package com.whereami.locus.auth
 import android.content.Context
 import android.content.SharedPreferences
 import com.whereami.locus.data.security.EncryptedPrefs
+import com.whereami.locus.data.security.LegacyDataStoreMigrator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +23,11 @@ data class StoredAuth(
 )
 
 class AuthStore(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
-        EncryptedPrefs.create(context.applicationContext, PREFS_NAME)
+        EncryptedPrefs.create(appContext, PREFS_NAME).also { secure ->
+            LegacyDataStoreMigrator.migrateAuth(appContext, secure)
+        }
 
     private val _isPasswordSet = MutableStateFlow(prefs.contains(KEY_PASSWORD_HASH))
     val isPasswordSet: StateFlow<Boolean> = _isPasswordSet.asStateFlow()

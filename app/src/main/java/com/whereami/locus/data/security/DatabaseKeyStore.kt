@@ -15,7 +15,8 @@ import javax.crypto.spec.GCMParameterSpec
  * Holds a random SQLCipher passphrase wrapped with an Android Keystore AES key.
  */
 class DatabaseKeyStore(context: Context) {
-    private val prefs = EncryptedPrefs.create(context.applicationContext, PREFS_NAME)
+    private val appContext = context.applicationContext
+    private val prefs = EncryptedPrefs.create(appContext, PREFS_NAME)
 
     fun getOrCreatePassphrase(): ByteArray {
         ensureKeystoreKey()
@@ -23,11 +24,15 @@ class DatabaseKeyStore(context: Context) {
         if (existing != null) {
             return unwrap(Base64.decode(existing, Base64.NO_WRAP))
         }
+        val encryptedDb = appContext.getDatabasePath(ENCRYPTED_DB_NAME)
+        check(!(encryptedDb.exists() && encryptedDb.length() > 0L)) {
+            "Encrypted trail DB exists but the wrap key is missing; refusing to mint a new key"
+        }
         val passphrase = ByteArray(32).also { SecureRandom().nextBytes(it) }
         val wrapped = wrap(passphrase)
         prefs.edit()
             .putString(KEY_WRAPPED, Base64.encodeToString(wrapped, Base64.NO_WRAP))
-            .apply()
+            .commit()
         return passphrase
     }
 
@@ -76,6 +81,7 @@ class DatabaseKeyStore(context: Context) {
         private const val KEY_ALIAS = "locus_sqlcipher_wrap_key"
         private const val PREFS_NAME = "locus_db_key_secure"
         private const val KEY_WRAPPED = "wrapped_passphrase"
+        private const val ENCRYPTED_DB_NAME = "locus_secure.db"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_IV_LENGTH = 12
     }

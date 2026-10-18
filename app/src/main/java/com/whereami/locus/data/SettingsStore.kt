@@ -3,14 +3,18 @@ package com.whereami.locus.data
 import android.content.Context
 import android.content.SharedPreferences
 import com.whereami.locus.data.security.EncryptedPrefs
+import com.whereami.locus.data.security.LegacyDataStoreMigrator
 import com.whereami.locus.domain.TrackingMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsStore(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
-        EncryptedPrefs.create(context.applicationContext, PREFS_NAME)
+        EncryptedPrefs.create(appContext, PREFS_NAME).also { secure ->
+            LegacyDataStoreMigrator.migrateSettings(appContext, secure)
+        }
 
     private val _trackingEnabled = MutableStateFlow(prefs.getBoolean(KEY_TRACKING_ENABLED, false))
     val trackingEnabled: StateFlow<Boolean> = _trackingEnabled.asStateFlow()

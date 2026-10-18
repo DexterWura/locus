@@ -64,6 +64,7 @@ abstract class LocusDatabase : RoomDatabase() {
                 LEGACY_DB_NAME
             ).build()
 
+            var migrated = false
             try {
                 runBlocking {
                     val points = legacy.trackPointDao().getAll()
@@ -74,16 +75,31 @@ abstract class LocusDatabase : RoomDatabase() {
                     labels.forEach { label ->
                         encrypted.placeLabelDao().upsert(label.copy(id = 0L))
                     }
+                    val copiedPoints = encrypted.trackPointDao().getAll().size
+                    val copiedLabels = encrypted.placeLabelDao().getAll().size
+                    check(copiedPoints == points.size && copiedLabels == labels.size) {
+                        "Trail migration count mismatch"
+                    }
+                    migrated = true
                 }
             } finally {
                 legacy.close()
                 encrypted.close()
             }
 
-            legacyFile.delete()
-            File(legacyFile.path + "-shm").delete()
-            File(legacyFile.path + "-wal").delete()
-            File(legacyFile.path + "-journal").delete()
+            if (migrated) {
+                deleteDbFiles(legacyFile)
+            } else {
+                deleteDbFiles(encryptedFile)
+                error("Failed to migrate trail database; plaintext DB kept for retry")
+            }
+        }
+
+        private fun deleteDbFiles(primary: File) {
+            primary.delete()
+            File(primary.path + "-shm").delete()
+            File(primary.path + "-wal").delete()
+            File(primary.path + "-journal").delete()
         }
     }
 }
