@@ -138,14 +138,25 @@ fun RecoveryScreen(
                         ) { Text("Verify answers") }
                     }
                 } else {
+                    Text(
+                        text = "Type the eight words you saved during setup, separated by spaces.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     OutlinedTextField(
                         value = phrase,
                         onValueChange = { phrase = it; onClearError() },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Recovery phrase") },
-                        minLines = 2,
+                        placeholder = { Text("word word word …") },
+                        minLines = 3,
+                        maxLines = 5,
+                        enabled = true,
+                        readOnly = false,
+                        shape = RoundedCornerShape(16.dp),
                         keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.None
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = false
                         )
                     )
                     if (error != null) {

@@ -31,7 +31,6 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -57,9 +56,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
+import com.whereami.locus.auth.PasswordCrypto
 import com.whereami.locus.auth.SecurityQuestions
 import com.whereami.locus.presentation.AuthViewModel
 import kotlinx.coroutines.launch
@@ -131,7 +133,7 @@ fun OnboardingScreen(
     var answer1 by remember { mutableStateOf("") }
     var answer2 by remember { mutableStateOf("") }
     var recoveryPhrase by remember { mutableStateOf("") }
-    var wrotePhraseDown by remember { mutableStateOf(false) }
+    var confirmPhrase by remember { mutableStateOf("") }
 
     val fineLocationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -229,7 +231,7 @@ fun OnboardingScreen(
                             answer2.isNotBlank()
                         ) {
                             recoveryPhrase = onGenerateRecoveryPhrase()
-                            wrotePhraseDown = false
+                            confirmPhrase = ""
                             phase = OnboardingPhase.RecoveryPhrase
                         }
                     }
@@ -239,11 +241,16 @@ fun OnboardingScreen(
             OnboardingPhase.RecoveryPhrase -> {
                 RecoveryPhraseStep(
                     phrase = recoveryPhrase,
-                    checked = wrotePhraseDown,
+                    confirmPhrase = confirmPhrase,
                     error = authError,
-                    onChecked = { wrotePhraseDown = it },
+                    onConfirmPhraseChange = {
+                        confirmPhrase = it
+                        onClearAuthError()
+                    },
                     onContinue = {
-                        if (!wrotePhraseDown) return@RecoveryPhraseStep
+                        val matches = PasswordCrypto.normalizePhrase(confirmPhrase) ==
+                            PasswordCrypto.normalizePhrase(recoveryPhrase)
+                        if (!matches) return@RecoveryPhraseStep
                         onSetupAuth(
                             password,
                             confirm,
@@ -486,11 +493,15 @@ private fun QuestionPicker(
 @Composable
 private fun RecoveryPhraseStep(
     phrase: String,
-    checked: Boolean,
+    confirmPhrase: String,
     error: String?,
-    onChecked: (Boolean) -> Unit,
+    onConfirmPhraseChange: (String) -> Unit,
     onContinue: () -> Unit
 ) {
+    val matches = PasswordCrypto.normalizePhrase(confirmPhrase) ==
+        PasswordCrypto.normalizePhrase(phrase)
+    val mismatch = confirmPhrase.isNotBlank() && !matches
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -498,13 +509,13 @@ private fun RecoveryPhraseStep(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Write down your recovery phrase",
+            text = "Save your recovery phrase",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "This phrase is shown once. Store it somewhere safe offline. Locus cannot show it again or send it to you.",
+            text = "Write these words down somewhere safe offline. Then type them below to confirm. Locus cannot show this phrase again.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -524,17 +535,35 @@ private fun RecoveryPhraseStep(
             )
         }
         Spacer(Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = checked, onCheckedChange = onChecked)
-            Text("I wrote this phrase down somewhere safe")
-        }
-        if (error != null) {
-            Text(error, color = MaterialTheme.colorScheme.error)
-        }
+        OutlinedTextField(
+            value = confirmPhrase,
+            onValueChange = onConfirmPhraseChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Type the recovery phrase") },
+            placeholder = { Text("word word word …") },
+            minLines = 2,
+            maxLines = 4,
+            enabled = true,
+            readOnly = false,
+            shape = RoundedCornerShape(16.dp),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false
+            ),
+            isError = mismatch || error != null,
+            supportingText = {
+                when {
+                    error != null -> Text(error)
+                    mismatch -> Text("Phrase does not match yet")
+                    matches -> Text("Phrase matches")
+                    else -> Text("Enter all eight words, separated by spaces")
+                }
+            }
+        )
         Spacer(Modifier.height(12.dp))
         Button(
             onClick = onContinue,
-            enabled = checked,
+            enabled = matches,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),

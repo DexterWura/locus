@@ -45,6 +45,7 @@ class SettingsStore(private val context: Context) {
         const val DEFAULT_SAMPLE_INTERVAL_MS = 5_000L
         const val STILL_SAMPLE_INTERVAL_MS = 30_000L
         const val MIN_DISPLACEMENT_METERS = 8f
-        const val STILL_AFTER_MS = 120_000L
+        /** How long without meaningful movement before UI shows Still. */
+        const val STILL_AFTER_MS = 45_000L
     }
 }

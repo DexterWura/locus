@@ -25,12 +25,11 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,9 +38,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.whereami.locus.domain.DayTime
+import com.whereami.locus.domain.Heading
 import com.whereami.locus.domain.TrackingStatus
 import com.whereami.locus.presentation.TodayUiState
 import com.whereami.locus.ui.components.BottomSheetCard
+import com.whereami.locus.ui.components.CompassDial
 import com.whereami.locus.ui.components.RoundIconButton
 import com.whereami.locus.ui.map.LocusMap
 import com.whereami.locus.ui.theme.LocatorBlue
@@ -51,7 +52,6 @@ import com.whereami.locus.ui.theme.StillAmber
 @Composable
 fun TodayScreen(
     state: TodayUiState,
-    onToggleTracking: (Boolean) -> Unit,
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
@@ -87,7 +87,7 @@ fun TodayScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                .padding(end = 20.dp, bottom = 232.dp),
+                .padding(end = 20.dp, bottom = 268.dp),
             shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.primary
@@ -103,24 +103,17 @@ fun TodayScreen(
                 .navigationBarsPadding()
                 .padding(16.dp)
         ) {
-            TodaySheet(
-                state = state,
-                onToggleTracking = onToggleTracking
-            )
+            TodaySheet(state = state)
         }
     }
 }
 
 @Composable
-private fun TodaySheet(
-    state: TodayUiState,
-    onToggleTracking: (Boolean) -> Unit
-) {
+private fun TodaySheet(state: TodayUiState) {
     BottomSheetCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -140,39 +133,54 @@ private fun TodaySheet(
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = if (state.points.isEmpty()) {
-                            "Start tracking to begin today’s path"
-                        } else {
-                            "${DayTime.formatDistance(state.distanceMeters)} today"
-                        },
+                        text = statusSubtitle(state),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Switch(
-                    checked = state.trackingEnabled,
-                    onCheckedChange = onToggleTracking
-                )
+
+                state.headingDegrees?.let { heading ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CompassDial(headingDegrees = heading)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = Heading.cardinal(heading),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
 
-            if (state.points.isNotEmpty()) {
+            if (state.points.isNotEmpty() || state.headingDegrees != null) {
                 Spacer(Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    if (state.points.isNotEmpty()) {
+                        Metric(
+                            label = "From",
+                            value = state.firstPointAt?.let(DayTime::formatClock) ?: "—"
+                        )
+                        Metric(
+                            label = "Last fix",
+                            value = state.lastPointAt?.let(DayTime::formatClock) ?: "—"
+                        )
+                    }
                     Metric(
-                        label = "From",
-                        value = state.firstPointAt?.let(DayTime::formatClock) ?: "—"
+                        label = "Facing",
+                        value = state.headingDegrees?.let(Heading::format)
+                            ?: if (state.compassAvailable) "…" else "N/A"
                     )
-                    Metric(
-                        label = "Last fix",
-                        value = state.lastPointAt?.let(DayTime::formatClock) ?: "—"
-                    )
-                    Metric(
-                        label = "Accuracy",
-                        value = state.lastAccuracyMeters?.let { String.format("%.0f m", it) } ?: "—"
-                    )
+                    if (state.points.isNotEmpty()) {
+                        Metric(
+                            label = "Accuracy",
+                            value = state.lastAccuracyMeters?.let { String.format("%.0f m", it) }
+                                ?: "—"
+                        )
+                    }
                 }
             }
         }
@@ -199,6 +207,42 @@ private fun statusLabel(status: TrackingStatus): String = when (status) {
     TrackingStatus.Moving -> "Moving"
     TrackingStatus.Still -> "Still"
     TrackingStatus.Paused -> "Paused"
+}
+
+private fun statusSubtitle(state: TodayUiState): String {
+    if (!state.trackingEnabled) {
+        return if (state.points.isEmpty()) {
+            "Turn on tracking in Settings to begin today’s path"
+        } else {
+            "${DayTime.formatDistance(state.distanceMeters)} today · paused"
+        }
+    }
+    val distance = DayTime.formatDistance(state.distanceMeters)
+    val speed = state.speedMps?.takeIf { it >= 0f }?.let { formatSpeed(it) }
+    val facing = state.headingDegrees?.let { Heading.cardinal(it) }
+    return when (state.status) {
+        TrackingStatus.Moving -> buildString {
+            append(distance)
+            append(" today")
+            if (speed != null) append(" · $speed")
+            if (facing != null) append(" · $facing")
+        }
+        TrackingStatus.Still -> buildString {
+            append(distance)
+            append(" today · stationary")
+            if (facing != null) append(" · facing $facing")
+        }
+        TrackingStatus.Paused -> "$distance today · paused"
+    }
+}
+
+private fun formatSpeed(metersPerSecond: Float): String {
+    val kmh = metersPerSecond * 3.6f
+    return if (kmh < 1f) {
+        String.format("%.1f m/s", metersPerSecond)
+    } else {
+        String.format("%.1f km/h", kmh)
+    }
 }
 
 private fun statusColor(status: TrackingStatus): Color = when (status) {

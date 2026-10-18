@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.whereami.locus.LocusApp
 import com.whereami.locus.R
+import com.whereami.locus.domain.TrackingStatus
 import com.whereami.locus.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 class TrackingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var collectionJob: Job? = null
+    private var statusJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -44,6 +46,7 @@ class TrackingService : Service() {
             else -> {
                 startAsForeground()
                 beginCollecting()
+                observeStatusForNotification()
             }
         }
         return START_STICKY
@@ -64,9 +67,20 @@ class TrackingService : Service() {
         }
     }
 
+    private fun observeStatusForNotification() {
+        if (statusJob?.isActive == true) return
+        val locationSource = (application as LocusApp).container.locationSource
+        statusJob = scope.launch {
+            locationSource.status.collectLatest { status ->
+                val manager = getSystemService(NotificationManager::class.java)
+                manager.notify(NOTIFICATION_ID, buildNotification(status))
+            }
+        }
+    }
+
     private fun startAsForeground() {
         createChannel()
-        val notification = buildNotification()
+        val notification = buildNotification(TrackingStatus.Moving)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ServiceCompat.startForeground(
                 this,
@@ -79,7 +93,7 @@ class TrackingService : Service() {
         }
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(status: TrackingStatus): Notification {
         val openIntent = PendingIntent.getActivity(
             this,
             0,
@@ -92,9 +106,14 @@ class TrackingService : Service() {
             Intent(this, TrackingService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val statusText = when (status) {
+            TrackingStatus.Moving -> "Moving · keeping today’s path"
+            TrackingStatus.Still -> "Still · waiting for movement"
+            TrackingStatus.Paused -> getString(R.string.tracking_notification_text)
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.tracking_notification_title))
-            .setContentText(getString(R.string.tracking_notification_text))
+            .setContentText(statusText)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(openIntent)
             .setOngoing(true)
@@ -120,6 +139,8 @@ class TrackingService : Service() {
     private fun stopSelfSafely() {
         collectionJob?.cancel()
         collectionJob = null
+        statusJob?.cancel()
+        statusJob = null
         (application as LocusApp).container.locationSource.markPaused()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -127,6 +148,7 @@ class TrackingService : Service() {
 
     override fun onDestroy() {
         collectionJob?.cancel()
+        statusJob?.cancel()
         scope.cancel()
         (application as? LocusApp)?.container?.locationSource?.markPaused()
         super.onDestroy()

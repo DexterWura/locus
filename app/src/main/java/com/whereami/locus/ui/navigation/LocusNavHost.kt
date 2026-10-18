@@ -159,7 +159,6 @@ fun LocusNavHost(
             val state by todayViewModel.uiState.collectAsStateWithLifecycle()
             TodayScreen(
                 state = state,
-                onToggleTracking = todayViewModel::setTrackingEnabled,
                 onOpenHistory = { navController.navigate(Routes.History) },
                 onOpenSettings = { navController.navigate(Routes.Settings) }
             )
@@ -198,6 +197,8 @@ fun LocusNavHost(
             )
             val state by todayViewModel.uiState.collectAsStateWithLifecycle()
             SettingsScreen(
+                trackingEnabled = state.trackingEnabled,
+                onToggleTracking = todayViewModel::setTrackingEnabled,
                 sampleIntervalMs = state.sampleIntervalMs,
                 onSampleIntervalChange = todayViewModel::setSampleIntervalMs,
                 onDeleteAll = todayViewModel::deleteAll,

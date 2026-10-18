@@ -25,6 +25,9 @@ data class TodayUiState(
     val lastAccuracyMeters: Float? = null,
     val trackingEnabled: Boolean = false,
     val status: TrackingStatus = TrackingStatus.Paused,
+    val speedMps: Float? = null,
+    val headingDegrees: Float? = null,
+    val compassAvailable: Boolean = false,
     val sampleIntervalMs: Long = 5_000L
 )
 
@@ -33,24 +36,44 @@ class TodayViewModel(
 ) : ViewModel() {
     private val dayStart = DayTime.startOfDayMillis()
 
-    val uiState: StateFlow<TodayUiState> = combine(
+    private data class CoreState(
+        val points: List<TrackPoint>,
+        val enabled: Boolean,
+        val status: TrackingStatus,
+        val speed: Float?,
+        val interval: Long
+    )
+
+    private val coreState = combine(
         container.trackRepository.observePointsForDay(dayStart),
         container.trackingController.isTrackingEnabled,
         container.trackingController.status,
+        container.locationSource.speedMps,
         container.settingsStore.sampleIntervalMs
-    ) { points, enabled, status, interval ->
-        val path = PathGeometry.drawablePoints(points)
+    ) { points, enabled, status, speed, interval ->
+        CoreState(points, enabled, status, speed, interval)
+    }
+
+    val uiState: StateFlow<TodayUiState> = combine(
+        coreState,
+        container.compassSensor.headingDegrees,
+        container.compassSensor.available
+    ) { core, heading, compassAvailable ->
+        val path = PathGeometry.drawablePoints(core.points)
         TodayUiState(
-            points = points,
+            points = core.points,
             path = path,
             currentPosition = path.lastOrNull(),
-            distanceMeters = PathGeometry.totalDistanceMeters(points),
-            firstPointAt = points.firstOrNull()?.recordedAt,
-            lastPointAt = points.lastOrNull()?.recordedAt,
-            lastAccuracyMeters = points.lastOrNull()?.accuracyMeters,
-            trackingEnabled = enabled,
-            status = if (enabled) status else TrackingStatus.Paused,
-            sampleIntervalMs = interval
+            distanceMeters = PathGeometry.totalDistanceMeters(core.points),
+            firstPointAt = core.points.firstOrNull()?.recordedAt,
+            lastPointAt = core.points.lastOrNull()?.recordedAt,
+            lastAccuracyMeters = core.points.lastOrNull()?.accuracyMeters,
+            trackingEnabled = core.enabled,
+            status = if (core.enabled) core.status else TrackingStatus.Paused,
+            speedMps = if (core.enabled) core.speed else null,
+            headingDegrees = heading,
+            compassAvailable = compassAvailable,
+            sampleIntervalMs = core.interval
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayUiState())
 

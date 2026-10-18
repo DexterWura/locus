@@ -8,6 +8,7 @@ import com.whereami.locus.data.TrackRepositoryImpl
 import com.whereami.locus.data.db.LocusDatabase
 import com.whereami.locus.domain.TrackRepository
 import com.whereami.locus.domain.TrackingController
+import com.whereami.locus.tracking.CompassSensor
 import com.whereami.locus.tracking.LocationSource
 import com.whereami.locus.tracking.TrackingControllerImpl
 
@@ -20,6 +21,7 @@ class AppContainer(context: Context) {
     val authSession = AuthSession().also { it.observeProcessLifecycle() }
     val trackRepository: TrackRepository = TrackRepositoryImpl(database)
     val locationSource = LocationSource(appContext)
+    val compassSensor = CompassSensor(appContext)
     val trackingController: TrackingController = TrackingControllerImpl(
         context = appContext,
         settingsStore = settingsStore,
