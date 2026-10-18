@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Locus</string>
+    <string name="tracking_notification_title">Locus is keeping today\'s path</string>
+    <string name="tracking_notification_text">Your trail stays on this phone.</string>
+    <string name="tracking_notification_stop">Stop</string>
+    <string name="tracking_channel_name">Path tracking</string>
+    <string name="tracking_channel_description">Shown while Locus records your day.</string>
+</resources>
