@@ -1,5 +1,10 @@
 package com.whereami.locus.ui.map
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Color as AndroidColor
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -28,7 +33,9 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -39,7 +46,12 @@ import org.maplibre.android.geometry.LatLng as MapLatLng
 private const val STYLE_URI = "https://tiles.openfreemap.org/styles/liberty"
 private const val SOURCE_PATH = "locus-path"
 private const val SOURCE_POSITION = "locus-position"
+private const val LAYER_PATH_CASING = "locus-path-casing"
 private const val LAYER_PATH = "locus-path-layer"
+private const val LAYER_PATH_ARROWS = "locus-path-arrows"
+private const val IMAGE_PATH_ARROW = "locus-path-arrow"
+private const val TRAIL_COLOR = "#1A73E8"
+private const val ARROW_EDGE_COLOR = "#0B3D91"
 private const val LAYER_POSITION_HALO = "locus-position-halo"
 private const val LAYER_POSITION = "locus-position-layer"
 
@@ -145,7 +157,7 @@ fun LocusMap(
                         map.uiSettings.isAttributionEnabled = true
                         map.uiSettings.isCompassEnabled = false
                         map.setStyle(Style.Builder().fromUri(STYLE_URI)) { style ->
-                            ensureLayers(style)
+                            ensureLayers(ctx, style)
                             styleReady = true
                             if (path.isNotEmpty()) {
                                 val target = currentPosition ?: path.last()
@@ -183,16 +195,39 @@ private fun MapLifecycle(mapView: MapView?) {
     }
 }
 
-private fun ensureLayers(style: Style) {
+private fun ensureLayers(context: Context, style: Style) {
+    if (style.getImage(IMAGE_PATH_ARROW) == null) {
+        style.addImage(IMAGE_PATH_ARROW, createArrowBitmap(context))
+    }
     if (style.getSource(SOURCE_PATH) == null) {
         style.addSource(GeoJsonSource(SOURCE_PATH))
         style.addLayer(
+            LineLayer(LAYER_PATH_CASING, SOURCE_PATH).withProperties(
+                PropertyFactory.lineColor(AndroidColor.WHITE),
+                PropertyFactory.lineWidth(7.5f),
+                PropertyFactory.lineOpacity(0.85f),
+                PropertyFactory.lineCap("round"),
+                PropertyFactory.lineJoin("round")
+            )
+        )
+        style.addLayer(
             LineLayer(LAYER_PATH, SOURCE_PATH).withProperties(
-                PropertyFactory.lineColor(AndroidColor.parseColor("#1A73E8")),
+                PropertyFactory.lineColor(AndroidColor.parseColor(TRAIL_COLOR)),
                 PropertyFactory.lineWidth(4.5f),
                 PropertyFactory.lineOpacity(0.95f),
                 PropertyFactory.lineCap("round"),
                 PropertyFactory.lineJoin("round")
+            )
+        )
+        style.addLayer(
+            SymbolLayer(LAYER_PATH_ARROWS, SOURCE_PATH).withProperties(
+                PropertyFactory.symbolPlacement(Property.SYMBOL_PLACEMENT_LINE),
+                PropertyFactory.symbolSpacing(64f),
+                PropertyFactory.iconImage(IMAGE_PATH_ARROW),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconKeepUpright(false),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true)
             )
         )
     }
@@ -201,19 +236,46 @@ private fun ensureLayers(style: Style) {
         style.addLayer(
             CircleLayer(LAYER_POSITION_HALO, SOURCE_POSITION).withProperties(
                 PropertyFactory.circleRadius(18f),
-                PropertyFactory.circleColor(AndroidColor.parseColor("#1A73E8")),
+                PropertyFactory.circleColor(AndroidColor.parseColor(TRAIL_COLOR)),
                 PropertyFactory.circleOpacity(0.25f)
             )
         )
         style.addLayer(
             CircleLayer(LAYER_POSITION, SOURCE_POSITION).withProperties(
                 PropertyFactory.circleRadius(8f),
-                PropertyFactory.circleColor(AndroidColor.parseColor("#1A73E8")),
+                PropertyFactory.circleColor(AndroidColor.parseColor(TRAIL_COLOR)),
                 PropertyFactory.circleStrokeWidth(3f),
                 PropertyFactory.circleStrokeColor(AndroidColor.WHITE)
             )
         )
     }
+}
+
+/** Right-pointing chevron: line placement aligns the icon's +x axis with the line direction. */
+private fun createArrowBitmap(context: Context): Bitmap {
+    val metrics = context.resources.displayMetrics
+    val density = metrics.density
+    val size = (14f * density).toInt().coerceAtLeast(1)
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    bitmap.density = metrics.densityDpi
+    val chevron = Path().apply {
+        moveTo(size * 0.34f, size * 0.22f)
+        lineTo(size * 0.66f, size * 0.5f)
+        lineTo(size * 0.34f, size * 0.78f)
+    }
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    val canvas = Canvas(bitmap)
+    paint.color = AndroidColor.parseColor(ARROW_EDGE_COLOR)
+    paint.strokeWidth = 4f * density
+    canvas.drawPath(chevron, paint)
+    paint.color = AndroidColor.WHITE
+    paint.strokeWidth = 2.2f * density
+    canvas.drawPath(chevron, paint)
+    return bitmap
 }
 
 private fun updatePathSource(style: Style, path: List<LatLng>) {
