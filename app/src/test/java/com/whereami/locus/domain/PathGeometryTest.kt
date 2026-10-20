@@ -23,7 +23,7 @@ class PathGeometryTest {
     fun drawablePoints_dropsInaccurateFixes() {
         val points = listOf(
             point(0.0, 0.0, accuracy = 10f, at = 1_000),
-            point(0.001, 0.0, accuracy = 50f, at = 2_000),
+            point(0.001, 0.0, accuracy = 80f, at = 2_000),
             // Far enough in time that implied speed stays under the spike cap
             point(0.002, 0.0, accuracy = 20f, at = 40_000)
         )

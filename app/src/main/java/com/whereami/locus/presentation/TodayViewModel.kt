@@ -65,15 +65,17 @@ class TodayViewModel(
     ) { core, heading, compassAvailable, mode ->
         val pathSegments = PathGeometry.drawableSegments(core.points)
         val path = pathSegments.flatten()
+        val lastRaw = core.points.lastOrNull()
         TodayUiState(
             points = core.points,
             path = path,
             pathSegments = pathSegments,
-            currentPosition = path.lastOrNull(),
+            currentPosition = lastRaw?.let { LatLng(it.latitude, it.longitude) }
+                ?: path.lastOrNull(),
             distanceMeters = PathGeometry.totalDistanceMeters(core.points),
             firstPointAt = core.points.firstOrNull()?.recordedAt,
-            lastPointAt = core.points.lastOrNull()?.recordedAt,
-            lastAccuracyMeters = core.points.lastOrNull()?.accuracyMeters,
+            lastPointAt = lastRaw?.recordedAt,
+            lastAccuracyMeters = lastRaw?.accuracyMeters,
             trackingEnabled = core.enabled,
             trackingMode = mode,
             status = if (core.enabled) core.status else TrackingStatus.Paused,

@@ -142,6 +142,31 @@ class AuthStore(context: Context) {
             .apply()
     }
 
+    fun restoreFromExport(
+        passwordSalt: ByteArray,
+        passwordHash: ByteArray,
+        answerSalt: ByteArray,
+        question1Id: String,
+        question2Id: String,
+        answer1Hash: ByteArray,
+        answer2Hash: ByteArray,
+        recoverySalt: ByteArray,
+        recoveryPhraseHash: ByteArray
+    ) {
+        prefs.edit()
+            .putString(KEY_PASSWORD_SALT, PasswordCrypto.encode(passwordSalt))
+            .putString(KEY_PASSWORD_HASH, PasswordCrypto.encode(passwordHash))
+            .putString(KEY_ANSWER_SALT, PasswordCrypto.encode(answerSalt))
+            .putString(KEY_QUESTION_1, question1Id)
+            .putString(KEY_QUESTION_2, question2Id)
+            .putString(KEY_ANSWER_1_HASH, PasswordCrypto.encode(answer1Hash))
+            .putString(KEY_ANSWER_2_HASH, PasswordCrypto.encode(answer2Hash))
+            .putString(KEY_RECOVERY_SALT, PasswordCrypto.encode(recoverySalt))
+            .putString(KEY_RECOVERY_HASH, PasswordCrypto.encode(recoveryPhraseHash))
+            .commit()
+        _isPasswordSet.value = true
+    }
+
     fun questionIds(): Pair<String, String>? {
         val stored = getStoredAuth() ?: return null
         return stored.question1Id to stored.question2Id

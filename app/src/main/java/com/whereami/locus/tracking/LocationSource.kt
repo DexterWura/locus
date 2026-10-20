@@ -37,7 +37,9 @@ class LocationSource(
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val motionClassifier = MotionClassifier(
-        stillAfterMs = SettingsStore.STILL_AFTER_MS
+        stillAfterMs = SettingsStore.STILL_AFTER_MS,
+        moveDistanceMeters = 15.0,
+        stillRadiusMeters = 45.0
     )
 
     private val _status = MutableStateFlow(TrackingStatus.Paused)
@@ -229,13 +231,14 @@ class LocationSource(
     }
 
     private fun preferredProvider(): String? {
+        // Prefer GPS over fused/network so the trail is not filled with coarse cell fixes.
         return when {
+            locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ->
+                LocationManager.GPS_PROVIDER
+
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 locationManager.isProviderEnabled(LocationManager.FUSED_PROVIDER) ->
                 LocationManager.FUSED_PROVIDER
-
-            locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ->
-                LocationManager.GPS_PROVIDER
 
             locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ->
                 LocationManager.NETWORK_PROVIDER

@@ -6,19 +6,20 @@ import kotlin.math.max
 
 /**
  * Classifies Moving vs Still from successive GPS fixes.
- * Status can also advance to Still on a timer tick when no new fix arrives.
+ * Defaults to Still until movement is confirmed, so GPS jitter does not look like walking.
  */
 class MotionClassifier(
-    private val moveSpeedMps: Float = 0.6f,
-    private val moveDistanceMeters: Double = 8.0,
-    private val stillAfterMs: Long = 45_000L,
-    private val stillRadiusMeters: Double = 25.0
+    private val moveSpeedMps: Float = 1.2f,
+    private val moveDistanceMeters: Double = 15.0,
+    private val stillAfterMs: Long = 25_000L,
+    private val stillRadiusMeters: Double = 45.0
 ) {
     private var lastLat: Double? = null
     private var lastLon: Double? = null
     private var anchorLat: Double? = null
     private var anchorLon: Double? = null
     private var lastSignificantMoveAtElapsed: Long = 0L
+    private var consecutiveMoveSignals: Int = 0
     private var current: TrackingStatus = TrackingStatus.Paused
 
     fun reset(nowElapsed: Long) {
@@ -27,11 +28,13 @@ class MotionClassifier(
         anchorLat = null
         anchorLon = null
         lastSignificantMoveAtElapsed = nowElapsed
-        current = TrackingStatus.Moving
+        consecutiveMoveSignals = 0
+        current = TrackingStatus.Still
     }
 
     fun markPaused() {
         current = TrackingStatus.Paused
+        consecutiveMoveSignals = 0
     }
 
     fun status(): TrackingStatus = current
@@ -44,7 +47,7 @@ class MotionClassifier(
         nowElapsed: Long
     ): TrackingStatus {
         if (current == TrackingStatus.Paused) {
-            current = TrackingStatus.Moving
+            current = TrackingStatus.Still
         }
 
         val previousLat = lastLat
@@ -56,7 +59,8 @@ class MotionClassifier(
             anchorLat = latitude
             anchorLon = longitude
             lastSignificantMoveAtElapsed = nowElapsed
-            current = TrackingStatus.Moving
+            consecutiveMoveSignals = 0
+            current = TrackingStatus.Still
             return current
         }
 
@@ -66,8 +70,11 @@ class MotionClassifier(
             latitude,
             longitude
         )
-        val moveThreshold = max(moveDistanceMeters, accuracyMeters * 0.5)
-        val fastEnough = speedMps != null && speedMps >= moveSpeedMps
+        val moveThreshold = max(moveDistanceMeters, accuracyMeters.toDouble() * 1.25)
+        val reliableSpeed =
+            speedMps != null &&
+                accuracyMeters <= 35f &&
+                speedMps >= moveSpeedMps
         val stepped = stepDistance >= moveThreshold
 
         val anchorDistance = if (anchorLat != null && anchorLon != null) {
@@ -75,16 +82,23 @@ class MotionClassifier(
         } else {
             0.0
         }
-        val leftStillCluster = anchorDistance >= stillRadiusMeters
+        val leaveClusterThreshold = max(stillRadiusMeters, accuracyMeters.toDouble() * 2.0)
+        val leftStillCluster = anchorDistance >= leaveClusterThreshold
 
-        if (fastEnough || stepped || leftStillCluster) {
-            lastSignificantMoveAtElapsed = nowElapsed
-            anchorLat = latitude
-            anchorLon = longitude
-            current = TrackingStatus.Moving
-            return current
+        if (reliableSpeed || stepped || leftStillCluster) {
+            consecutiveMoveSignals += 1
+            val confirmed = reliableSpeed || consecutiveMoveSignals >= 2
+            if (confirmed) {
+                lastSignificantMoveAtElapsed = nowElapsed
+                anchorLat = latitude
+                anchorLon = longitude
+                current = TrackingStatus.Moving
+                return current
+            }
+            return evaluateStill(nowElapsed)
         }
 
+        consecutiveMoveSignals = 0
         return evaluateStill(nowElapsed)
     }
 
@@ -98,8 +112,10 @@ class MotionClassifier(
         val idleFor = nowElapsed - lastSignificantMoveAtElapsed
         current = if (idleFor >= stillAfterMs) {
             TrackingStatus.Still
-        } else {
+        } else if (current == TrackingStatus.Moving) {
             TrackingStatus.Moving
+        } else {
+            TrackingStatus.Still
         }
         return current
     }

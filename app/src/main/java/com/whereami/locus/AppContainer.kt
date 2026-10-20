@@ -7,6 +7,7 @@ import com.whereami.locus.data.CompanyLinkStore
 import com.whereami.locus.data.SettingsStore
 import com.whereami.locus.data.TrackRepositoryImpl
 import com.whereami.locus.data.db.LocusDatabase
+import com.whereami.locus.data.migrate.DeviceDataBridge
 import com.whereami.locus.data.sync.LocationUploader
 import com.whereami.locus.domain.TrackRepository
 import com.whereami.locus.domain.TrackingController
@@ -27,6 +28,17 @@ class AppContainer(context: Context) {
     val authStore = AuthStore(appContext)
     val authSession = AuthSession().also { it.observeProcessLifecycle() }
     val companyLinkStore = CompanyLinkStore(appContext)
+
+    init {
+        DeviceDataBridge.importIfPresent(
+            context = appContext,
+            database = database,
+            settingsStore = settingsStore,
+            authStore = authStore,
+            companyLinkStore = companyLinkStore
+        )
+    }
+
     val trackRepository: TrackRepository = TrackRepositoryImpl(database)
     val locationUploader = LocationUploader(companyLinkStore, trackRepository)
     val locationSource = LocationSource(appContext)

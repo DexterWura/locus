@@ -9,7 +9,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 object PathGeometry {
-    const val MAX_DRAW_ACCURACY_METERS = 30f
+    /** Indoor / urban GPS often reports 30–50 m; keep those points on the trail. */
+    const val MAX_DRAW_ACCURACY_METERS = 65f
     const val SEGMENT_GAP_MILLIS = 10 * 60 * 1000L
     const val STOP_RADIUS_METERS = 40.0
     const val STOP_MIN_DURATION_MILLIS = 3 * 60 * 1000L

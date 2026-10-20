@@ -60,8 +60,8 @@ class SettingsStore(context: Context) {
         const val STILL_SAMPLE_INTERVAL_MS = 30_000L
         const val MIN_DISPLACEMENT_METERS = 8f
         const val STILL_MIN_DISPLACEMENT_METERS = 20f
-        const val STILL_AFTER_MS = 45_000L
-        const val MOVING_MIN_DISTANCE_METERS = 5f
+        const val STILL_AFTER_MS = 25_000L
+        const val MOVING_MIN_DISTANCE_METERS = 8f
 
         private const val PREFS_NAME = "locus_settings_secure"
         private const val KEY_TRACKING_ENABLED = "tracking_enabled"
