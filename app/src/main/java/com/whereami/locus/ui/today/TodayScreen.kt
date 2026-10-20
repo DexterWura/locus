@@ -59,7 +59,7 @@ fun TodayScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LocusMap(
-            path = state.path,
+            pathSegments = state.pathSegments,
             currentPosition = state.currentPosition,
             animatePath = true,
             fitToPath = state.path.size >= 2,

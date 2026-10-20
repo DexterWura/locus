@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 data class TodayUiState(
     val points: List<TrackPoint> = emptyList(),
     val path: List<LatLng> = emptyList(),
+    val pathSegments: List<List<LatLng>> = emptyList(),
     val currentPosition: LatLng? = null,
     val distanceMeters: Double = 0.0,
     val firstPointAt: Long? = null,
@@ -62,10 +63,12 @@ class TodayViewModel(
         container.compassSensor.available,
         container.settingsStore.trackingMode
     ) { core, heading, compassAvailable, mode ->
-        val path = PathGeometry.drawablePoints(core.points)
+        val pathSegments = PathGeometry.drawableSegments(core.points)
+        val path = pathSegments.flatten()
         TodayUiState(
             points = core.points,
             path = path,
+            pathSegments = pathSegments,
             currentPosition = path.lastOrNull(),
             distanceMeters = PathGeometry.totalDistanceMeters(core.points),
             firstPointAt = core.points.firstOrNull()?.recordedAt,

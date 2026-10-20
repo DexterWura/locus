@@ -1,7 +1,10 @@
 package com.whereami.locus.domain
 
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -11,7 +14,13 @@ object PathGeometry {
     const val STOP_RADIUS_METERS = 40.0
     const val STOP_MIN_DURATION_MILLIS = 3 * 60 * 1000L
 
+    const val MAX_IMPLIED_SPEED_MPS = 70.0
+    const val STILL_COLLAPSE_RADIUS_METERS = 18.0
+    const val STILL_COLLAPSE_MIN_DURATION_MILLIS = 45_000L
+    const val DENOISE_MAX_OFFSET_METERS = 8.0
+
     private const val EARTH_RADIUS_METERS = 6_371_000.0
+    private const val METERS_PER_DEGREE_LAT = 111_320.0
 
     fun haversineMeters(
         lat1: Double,
@@ -32,9 +41,13 @@ object PathGeometry {
         haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude)
 
     fun drawablePoints(points: List<TrackPoint>): List<LatLng> =
-        points
-            .filter { it.accuracyMeters <= MAX_DRAW_ACCURACY_METERS }
-            .map { LatLng(it.latitude, it.longitude) }
+        drawableSegments(points).flatten()
+
+    fun drawableSegments(points: List<TrackPoint>): List<List<LatLng>> {
+        return cleanedTrackSegments(points)
+            .map { segment -> segment.map { LatLng(it.latitude, it.longitude) } }
+            .filter { it.isNotEmpty() }
+    }
 
     fun splitSegments(points: List<TrackPoint>): List<List<TrackPoint>> {
         if (points.isEmpty()) return emptyList()
@@ -55,12 +68,12 @@ object PathGeometry {
     }
 
     fun totalDistanceMeters(points: List<TrackPoint>): Double {
-        val drawable = points.filter { it.accuracyMeters <= MAX_DRAW_ACCURACY_METERS }
-        if (drawable.size < 2) return 0.0
+        val cleaned = cleanedTrackPoints(points)
+        if (cleaned.size < 2) return 0.0
         var total = 0.0
-        for (i in 1 until drawable.size) {
-            val previous = drawable[i - 1]
-            val point = drawable[i]
+        for (i in 1 until cleaned.size) {
+            val previous = cleaned[i - 1]
+            val point = cleaned[i]
             if (point.recordedAt - previous.recordedAt > SEGMENT_GAP_MILLIS) continue
             total += haversineMeters(
                 previous.latitude,
@@ -146,6 +159,146 @@ object PathGeometry {
             .minByOrNull { it.second }
             ?.first
             ?.name
+    }
+
+    private fun cleanedTrackPoints(points: List<TrackPoint>): List<TrackPoint> =
+        cleanedTrackSegments(points).flatten()
+
+    private fun cleanedTrackSegments(points: List<TrackPoint>): List<List<TrackPoint>> {
+        val accurate = points.filter { it.accuracyMeters <= MAX_DRAW_ACCURACY_METERS }
+        if (accurate.isEmpty()) return emptyList()
+        val despiked = dropSpeedSpikes(accurate)
+        val collapsed = collapseStillClusters(despiked)
+        return splitSegments(collapsed).map { denoiseWithinAccuracy(it) }
+    }
+
+    private fun dropSpeedSpikes(points: List<TrackPoint>): List<TrackPoint> {
+        if (points.isEmpty()) return emptyList()
+        val kept = mutableListOf(points.first())
+        for (i in 1 until points.size) {
+            val candidate = points[i]
+            val previous = kept.last()
+            val dtSeconds = (candidate.recordedAt - previous.recordedAt) / 1000.0
+            if (dtSeconds <= 0.0) continue
+            val distance = haversineMeters(
+                previous.latitude,
+                previous.longitude,
+                candidate.latitude,
+                candidate.longitude
+            )
+            if (distance / dtSeconds > MAX_IMPLIED_SPEED_MPS) continue
+            kept += candidate
+        }
+        return kept
+    }
+
+    private fun collapseStillClusters(points: List<TrackPoint>): List<TrackPoint> {
+        if (points.isEmpty()) return emptyList()
+        val result = mutableListOf<TrackPoint>()
+        var i = 0
+        while (i < points.size) {
+            val cluster = mutableListOf(points[i])
+            var j = i + 1
+            while (j < points.size) {
+                val candidate = points[j]
+                val centerLat = cluster.map { it.latitude }.average()
+                val centerLon = cluster.map { it.longitude }.average()
+                val distance = haversineMeters(
+                    centerLat,
+                    centerLon,
+                    candidate.latitude,
+                    candidate.longitude
+                )
+                if (distance <= STILL_COLLAPSE_RADIUS_METERS) {
+                    cluster += candidate
+                    j++
+                } else {
+                    break
+                }
+            }
+            val duration = cluster.last().recordedAt - cluster.first().recordedAt
+            if (duration >= STILL_COLLAPSE_MIN_DURATION_MILLIS && cluster.size >= 2) {
+                result += accuracyWeightedPoint(cluster)
+                i = j
+            } else {
+                result += points[i]
+                i++
+            }
+        }
+        return result
+    }
+
+    private fun accuracyWeightedPoint(cluster: List<TrackPoint>): TrackPoint {
+        var weightSum = 0.0
+        var latSum = 0.0
+        var lonSum = 0.0
+        for (point in cluster) {
+            val weight = 1.0 / max(point.accuracyMeters.toDouble(), 1.0)
+            weightSum += weight
+            latSum += point.latitude * weight
+            lonSum += point.longitude * weight
+        }
+        val bestAccuracy = cluster.minOf { it.accuracyMeters }
+        return cluster.first().copy(
+            latitude = latSum / weightSum,
+            longitude = lonSum / weightSum,
+            accuracyMeters = bestAccuracy,
+            altitudeMeters = null,
+            speedMetersPerSecond = null,
+            bearingDegrees = null,
+            recordedAt = cluster.first().recordedAt
+        )
+    }
+
+    private fun denoiseWithinAccuracy(points: List<TrackPoint>): List<TrackPoint> {
+        if (points.size < 3) return points
+        val kept = mutableListOf(points.first())
+        var i = 1
+        while (i < points.lastIndex) {
+            val candidate = points[i]
+            val left = kept.last()
+            val right = points[i + 1]
+            val offset = perpendicularDistanceMeters(
+                left.latitude,
+                left.longitude,
+                candidate.latitude,
+                candidate.longitude,
+                right.latitude,
+                right.longitude
+            )
+            val tolerance = min(candidate.accuracyMeters.toDouble(), DENOISE_MAX_OFFSET_METERS)
+            if (offset <= tolerance) {
+                i++
+            } else {
+                kept += candidate
+                i++
+            }
+        }
+        kept += points.last()
+        return kept
+    }
+
+    private fun perpendicularDistanceMeters(
+        aLat: Double,
+        aLon: Double,
+        bLat: Double,
+        bLon: Double,
+        cLat: Double,
+        cLon: Double
+    ): Double {
+        val midLat = Math.toRadians((aLat + cLat) / 2.0)
+        val metersPerDegreeLon = METERS_PER_DEGREE_LAT * cos(midLat)
+        val ax = 0.0
+        val ay = 0.0
+        val bx = (bLon - aLon) * metersPerDegreeLon
+        val by = (bLat - aLat) * METERS_PER_DEGREE_LAT
+        val cx = (cLon - aLon) * metersPerDegreeLon
+        val cy = (cLat - aLat) * METERS_PER_DEGREE_LAT
+        val acLen = sqrt(cx * cx + cy * cy)
+        if (acLen < 1e-6) {
+            return haversineMeters(aLat, aLon, bLat, bLon)
+        }
+        return abs(cx * (by - ay) - cy * (bx - ax)) / acLen
     }
 
     private data class RawStop(

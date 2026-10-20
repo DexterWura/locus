@@ -57,7 +57,7 @@ private const val LAYER_POSITION = "locus-position-layer"
 
 @Composable
 fun LocusMap(
-    path: List<LatLng>,
+    pathSegments: List<List<LatLng>>,
     currentPosition: LatLng?,
     animatePath: Boolean = true,
     fitToPath: Boolean = false,
@@ -70,6 +70,7 @@ fun LocusMap(
         true
     }
 
+    val allPoints = remember(pathSegments) { pathSegments.flatten() }
     val pathProgress = remember { Animatable(0f) }
     val pulse = rememberInfiniteTransition(label = "pulse")
     val pulseScale by pulse.animateFloat(
@@ -91,8 +92,8 @@ fun LocusMap(
         label = "pulseAlpha"
     )
 
-    LaunchedEffect(path, animatePath) {
-        if (animatePath && path.size >= 2) {
+    LaunchedEffect(pathSegments, animatePath) {
+        if (animatePath && allPoints.size >= 2) {
             pathProgress.snapTo(0f)
             pathProgress.animateTo(1f, animationSpec = tween(durationMillis = 1400))
         } else {
@@ -100,23 +101,19 @@ fun LocusMap(
         }
     }
 
-    val visiblePath = remember(path, pathProgress.value) {
-        if (path.isEmpty()) emptyList()
-        else {
-            val count = ((path.size - 1) * pathProgress.value).toInt().coerceAtLeast(0) + 1
-            path.take(count.coerceAtMost(path.size))
-        }
+    val visibleSegments = remember(pathSegments, pathProgress.value) {
+        visiblePathSegments(pathSegments, pathProgress.value)
     }
 
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
     var styleReady by remember { mutableStateOf(false) }
 
-    LaunchedEffect(visiblePath, currentPosition, styleReady, pulseScale, pulseAlpha) {
+    LaunchedEffect(visibleSegments, currentPosition, styleReady, pulseScale, pulseAlpha) {
         val mapView = mapViewRef ?: return@LaunchedEffect
         if (!styleReady) return@LaunchedEffect
         mapView.getMapAsync { map ->
             val style = map.style ?: return@getMapAsync
-            updatePathSource(style, visiblePath)
+            updatePathSource(style, visibleSegments)
             updatePositionSource(style, currentPosition, pulseScale, pulseAlpha)
         }
     }
@@ -135,12 +132,12 @@ fun LocusMap(
         }
     }
 
-    LaunchedEffect(fitToPath, path, styleReady) {
-        if (!fitToPath || path.size < 2 || !styleReady) return@LaunchedEffect
+    LaunchedEffect(fitToPath, pathSegments, styleReady) {
+        if (!fitToPath || allPoints.size < 2 || !styleReady) return@LaunchedEffect
         val mapView = mapViewRef ?: return@LaunchedEffect
         mapView.getMapAsync { map ->
             val bounds = LatLngBounds.Builder().apply {
-                path.forEach { include(MapLatLng(it.latitude, it.longitude)) }
+                allPoints.forEach { include(MapLatLng(it.latitude, it.longitude)) }
             }.build()
             map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 96))
         }
@@ -159,8 +156,8 @@ fun LocusMap(
                         map.setStyle(Style.Builder().fromUri(STYLE_URI)) { style ->
                             ensureLayers(ctx, style)
                             styleReady = true
-                            if (path.isNotEmpty()) {
-                                val target = currentPosition ?: path.last()
+                            if (allPoints.isNotEmpty()) {
+                                val target = currentPosition ?: allPoints.last()
                                 map.moveCamera(
                                     CameraUpdateFactory.newLatLngZoom(
                                         MapLatLng(target.latitude, target.longitude),
@@ -278,16 +275,38 @@ private fun createArrowBitmap(context: Context): Bitmap {
     return bitmap
 }
 
-private fun updatePathSource(style: Style, path: List<LatLng>) {
-    val source = style.getSourceAs<GeoJsonSource>(SOURCE_PATH) ?: return
-    if (path.size < 2) {
-        source.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
-        return
+internal fun visiblePathSegments(
+    segments: List<List<LatLng>>,
+    progress: Float
+): List<List<LatLng>> {
+    if (segments.isEmpty()) return emptyList()
+    val totalPoints = segments.sumOf { it.size }
+    if (totalPoints == 0) return emptyList()
+    val targetCount = ((totalPoints - 1) * progress).toInt().coerceAtLeast(0) + 1
+    val visible = mutableListOf<List<LatLng>>()
+    var remaining = targetCount
+    for (segment in segments) {
+        if (remaining <= 0) break
+        if (segment.isEmpty()) continue
+        val take = remaining.coerceAtMost(segment.size)
+        visible += segment.take(take)
+        remaining -= take
     }
-    val line = LineString.fromLngLats(
-        path.map { Point.fromLngLat(it.longitude, it.latitude) }
-    )
-    source.setGeoJson(Feature.fromGeometry(line))
+    return visible
+}
+
+private fun updatePathSource(style: Style, segments: List<List<LatLng>>) {
+    val source = style.getSourceAs<GeoJsonSource>(SOURCE_PATH) ?: return
+    val features = segments
+        .filter { it.size >= 2 }
+        .map { segment ->
+            Feature.fromGeometry(
+                LineString.fromLngLats(
+                    segment.map { Point.fromLngLat(it.longitude, it.latitude) }
+                )
+            )
+        }
+    source.setGeoJson(FeatureCollection.fromFeatures(features))
 }
 
 private fun updatePositionSource(

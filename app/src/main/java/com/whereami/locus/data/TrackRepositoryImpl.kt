@@ -33,14 +33,17 @@ class TrackRepositoryImpl(
                 .map { it.toDomain() }
                 .groupBy { DayTime.startOfDayMillis(it.recordedAt) }
                 .map { (dayStart, points) ->
-                    val drawable = PathGeometry.drawablePoints(points)
+                    val segments = PathGeometry.drawableSegments(points)
+                    val drawable = segments.flatten()
+                    val thumbnailSegments = downsampleSegments(segments, 48)
                     DaySummary(
                         dayStartMillis = dayStart,
                         firstPointAt = points.first().recordedAt,
                         lastPointAt = points.last().recordedAt,
                         distanceMeters = PathGeometry.totalDistanceMeters(points),
                         pointCount = points.size,
-                        thumbnailPoints = downsample(drawable, 48)
+                        thumbnailPoints = thumbnailSegments.flatten(),
+                        thumbnailSegments = thumbnailSegments
                     )
                 }
                 .sortedByDescending { it.dayStartMillis }
@@ -55,10 +58,12 @@ class TrackRepositoryImpl(
     override suspend fun getDayDetail(dayStartMillis: Long): DayDetail {
         val points = getPointsForDay(dayStartMillis)
         val labels = placeLabelDao.getAll().map { it.toDomain() }
+        val segments = PathGeometry.drawableSegments(points)
         return DayDetail(
             dayStartMillis = dayStartMillis,
             points = points,
-            drawablePoints = PathGeometry.drawablePoints(points),
+            drawablePoints = segments.flatten(),
+            drawableSegments = segments,
             distanceMeters = PathGeometry.totalDistanceMeters(points),
             timeline = PathGeometry.buildTimeline(points, labels)
         )
@@ -83,6 +88,20 @@ class TrackRepositoryImpl(
 
     override suspend fun deletePlaceLabel(id: Long) {
         placeLabelDao.deleteById(id)
+    }
+
+    private fun downsampleSegments(
+        segments: List<List<LatLng>>,
+        maxPoints: Int
+    ): List<List<LatLng>> {
+        val total = segments.sumOf { it.size }
+        if (total <= maxPoints) return segments
+        return segments.map { segment ->
+            val share = ((segment.size.toFloat() / total) * maxPoints)
+                .toInt()
+                .coerceAtLeast(if (segment.size >= 2) 2 else segment.size)
+            downsample(segment, share.coerceAtMost(segment.size))
+        }
     }
 
     private fun downsample(points: List<LatLng>, maxPoints: Int): List<LatLng> {

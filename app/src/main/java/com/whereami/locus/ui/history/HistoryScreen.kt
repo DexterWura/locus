@@ -140,7 +140,11 @@ private fun DayCard(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
-                PathThumbnail(points = day.thumbnailPoints, modifier = Modifier.padding(8.dp))
+                PathThumbnail(
+                    points = day.thumbnailPoints,
+                    segments = day.thumbnailSegments,
+                    modifier = Modifier.padding(8.dp)
+                )
             }
             Column(
                 modifier = Modifier

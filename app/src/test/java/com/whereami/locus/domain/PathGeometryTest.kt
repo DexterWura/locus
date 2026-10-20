@@ -24,12 +24,78 @@ class PathGeometryTest {
         val points = listOf(
             point(0.0, 0.0, accuracy = 10f, at = 1_000),
             point(0.001, 0.0, accuracy = 50f, at = 2_000),
-            point(0.002, 0.0, accuracy = 20f, at = 3_000)
+            // Far enough in time that implied speed stays under the spike cap
+            point(0.002, 0.0, accuracy = 20f, at = 40_000)
         )
         val drawable = PathGeometry.drawablePoints(points)
         assertEquals(2, drawable.size)
         assertEquals(0.0, drawable[0].latitude, 0.0)
         assertEquals(0.002, drawable[1].latitude, 0.0)
+    }
+
+    @Test
+    fun drawableSegments_dropsSpeedSpike() {
+        val points = listOf(
+            point(0.0, 0.0, at = 0),
+            // ~222 m north in 1 s ≈ 222 m/s — above the 70 m/s cap
+            point(0.002, 0.0, at = 1_000),
+            point(0.0005, 0.0, at = 5_000),
+            point(0.001, 0.0, at = 10_000)
+        )
+        val drawable = PathGeometry.drawablePoints(points)
+        assertTrue(drawable.none { it.latitude == 0.002 })
+        assertEquals(0.0, drawable.first().latitude, 0.0)
+        assertEquals(0.001, drawable.last().latitude, 0.0)
+    }
+
+    @Test
+    fun drawableSegments_collapsesStillCluster() {
+        val points = mutableListOf(
+            point(0.0, 0.0, at = 0),
+            point(0.001, 0.0, at = 10_000)
+        )
+        val stopBase = 20_000L
+        repeat(6) { i ->
+            val jitter = (i % 3) * 0.00002
+            points += point(0.001 + jitter, jitter, at = stopBase + i * 10_000L)
+        }
+        val resume = stopBase + 6 * 10_000L
+        points += point(0.002, 0.0, at = resume)
+        points += point(0.003, 0.0, at = resume + 10_000L)
+
+        val drawable = PathGeometry.drawablePoints(points)
+        assertTrue(drawable.size < points.size)
+        val nearStop = drawable.count {
+            PathGeometry.haversineMeters(it.latitude, it.longitude, 0.001, 0.0) <= 20.0
+        }
+        assertTrue(nearStop <= 1)
+    }
+
+    @Test
+    fun drawableSegments_keepsRealTurn() {
+        val points = listOf(
+            point(0.0, 0.0, accuracy = 5f, at = 0),
+            point(0.001, 0.0, accuracy = 5f, at = 10_000),
+            point(0.001, 0.001, accuracy = 5f, at = 20_000)
+        )
+        val drawable = PathGeometry.drawablePoints(points)
+        assertEquals(3, drawable.size)
+        assertEquals(0.001, drawable[1].latitude, 0.0)
+        assertEquals(0.0, drawable[1].longitude, 0.0)
+    }
+
+    @Test
+    fun drawableSegments_breaksAfterTenMinuteGap() {
+        val points = listOf(
+            point(0.0, 0.0, at = 0),
+            point(0.001, 0.0, at = 60_000),
+            point(0.002, 0.0, at = 60_000 + PathGeometry.SEGMENT_GAP_MILLIS + 1),
+            point(0.003, 0.0, at = 60_000 + PathGeometry.SEGMENT_GAP_MILLIS + 30_000)
+        )
+        val segments = PathGeometry.drawableSegments(points)
+        assertEquals(2, segments.size)
+        assertEquals(2, segments[0].size)
+        assertEquals(2, segments[1].size)
     }
 
     @Test

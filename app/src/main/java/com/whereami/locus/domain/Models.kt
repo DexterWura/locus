@@ -25,7 +25,8 @@ data class DaySummary(
     val lastPointAt: Long,
     val distanceMeters: Double,
     val pointCount: Int,
-    val thumbnailPoints: List<LatLng>
+    val thumbnailPoints: List<LatLng>,
+    val thumbnailSegments: List<List<LatLng>> = emptyList()
 )
 
 data class LatLng(
@@ -53,6 +54,7 @@ data class DayDetail(
     val dayStartMillis: Long,
     val points: List<TrackPoint>,
     val drawablePoints: List<LatLng>,
+    val drawableSegments: List<List<LatLng>>,
     val distanceMeters: Double,
     val timeline: List<TimelineItem>
 )

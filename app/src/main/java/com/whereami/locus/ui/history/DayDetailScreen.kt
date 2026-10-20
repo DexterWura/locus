@@ -51,7 +51,7 @@ fun DayDetailScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (detail != null) {
             LocusMap(
-                path = detail.drawablePoints,
+                pathSegments = detail.drawableSegments,
                 currentPosition = detail.drawablePoints.lastOrNull(),
                 animatePath = true,
                 fitToPath = true,
