@@ -12,11 +12,13 @@ Also linked in-app: Settings → Privacy policy.
 
 | Data type | Collected? | Shared? | Purpose | Ephemeral? | Required? |
 | --- | --- | --- | --- | --- | --- |
-| Precise location | Yes | No* | App functionality (day trail) | No | Yes for tracking |
+| Precise location | Yes | Optional† | App functionality (day trail); optional company Device Management | No | Yes for tracking |
 | App activity / settings | Yes (local) | No | App functionality | No | No |
 | Password / recovery hashes | Yes (local) | No | App functionality / account (device lock) | No | Yes after onboarding |
 
 \*Map tile HTTPS requests to OpenFreeMap reveal the map region being viewed (typically near the user). Declare **location** as collected; for “shared with third parties,” treat tile CDN usage per your Console guidance — Locus does not sell data and has no ads/analytics SDKs. Prefer declaring that location is used for app functionality and that network map tiles may be requested.
+
+†Only after the user scans a company Device Management QR. New points are sent to that company’s ERP while linked. Unlink stops sharing.
 
 **Encryption:** Data encrypted in transit (HTTPS tiles). Data encrypted at rest on device (SQLCipher + Keystore / EncryptedSharedPreferences).
 

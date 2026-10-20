@@ -1,6 +1,7 @@
 package com.whereami.locus.tracking
 
 import com.whereami.locus.data.SettingsStore
+import com.whereami.locus.data.sync.LocationUploader
 import com.whereami.locus.domain.TrackRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -14,6 +15,7 @@ class ForegroundTracker(
     private val locationSource: LocationSource,
     private val trackRepository: TrackRepository,
     private val settingsStore: SettingsStore,
+    private val locationUploader: LocationUploader,
     private val scope: CoroutineScope
 ) {
     private var job: Job? = null
@@ -26,6 +28,7 @@ class ForegroundTracker(
             val interval = settingsStore.sampleIntervalMs.value
             locationSource.observeLocations(interval).collect { point ->
                 trackRepository.insertPoint(point)
+                locationUploader.flushPending()
             }
         }
     }

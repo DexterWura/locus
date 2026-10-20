@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.whereami.locus.data.security.DatabaseKeyStore
 import kotlinx.coroutines.runBlocking
 import net.sqlcipher.database.SupportFactory
@@ -11,7 +13,7 @@ import java.io.File
 
 @Database(
     entities = [TrackPointEntity::class, PlaceLabelEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class LocusDatabase : RoomDatabase() {
@@ -21,6 +23,12 @@ abstract class LocusDatabase : RoomDatabase() {
     companion object {
         private const val ENCRYPTED_DB_NAME = "locus_secure.db"
         private const val LEGACY_DB_NAME = "locus.db"
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE track_points ADD COLUMN uploadedAt INTEGER")
+            }
+        }
 
         @Volatile
         private var instance: LocusDatabase? = null
@@ -41,6 +49,7 @@ abstract class LocusDatabase : RoomDatabase() {
                 ENCRYPTED_DB_NAME
             )
                 .openHelperFactory(factory)
+                .addMigrations(MIGRATION_1_2)
                 .build()
         }
 
@@ -56,13 +65,16 @@ abstract class LocusDatabase : RoomDatabase() {
                 ENCRYPTED_DB_NAME
             )
                 .openHelperFactory(SupportFactory(passphrase.copyOf()))
+                .addMigrations(MIGRATION_1_2)
                 .build()
 
             val legacy = Room.databaseBuilder(
                 context,
                 LocusDatabase::class.java,
                 LEGACY_DB_NAME
-            ).build()
+            )
+                .addMigrations(MIGRATION_1_2)
+                .build()
 
             var migrated = false
             try {

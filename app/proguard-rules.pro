@@ -19,6 +19,11 @@
 -keep class com.google.crypto.tink.** { *; }
 -dontwarn com.google.crypto.tink.**
 
+# ZXing / JourneyApps scanner
+-keep class com.journeyapps.** { *; }
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**
+
 # Kotlin
 -dontwarn kotlinx.coroutines.**
 -keepclassmembers class **$WhenMappings { <fields>; }

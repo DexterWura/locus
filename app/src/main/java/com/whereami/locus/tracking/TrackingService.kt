@@ -60,10 +60,12 @@ class TrackingService : Service() {
         val settings = app.container.settingsStore
         val locationSource = app.container.locationSource
 
+        val uploader = app.container.locationUploader
         collectionJob = scope.launch {
             val interval = settings.sampleIntervalMs.value
             locationSource.observeLocations(interval).collectLatest { point ->
                 repository.insertPoint(point)
+                uploader.flushPending()
             }
         }
     }

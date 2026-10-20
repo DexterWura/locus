@@ -49,6 +49,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import com.whereami.locus.data.CompanyLink
 import com.whereami.locus.domain.TrackingMode
 import com.whereami.locus.tracking.LocationPermissions
 
@@ -62,6 +65,12 @@ fun SettingsScreen(
     sampleIntervalMs: Long,
     onSampleIntervalChange: (Long) -> Unit,
     onDeleteAll: () -> Unit,
+    companyLink: CompanyLink?,
+    companyLinkBusy: Boolean,
+    companyLinkMessage: String?,
+    onClearCompanyLinkMessage: () -> Unit,
+    onPairFromQr: (String) -> Unit,
+    onUnlinkCompany: () -> Unit,
     authError: String?,
     onClearAuthError: () -> Unit,
     onChangePassword: (
@@ -75,12 +84,34 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmUnlink by remember { mutableStateOf(false) }
     var showChangePassword by remember { mutableStateOf(false) }
     var showBackgroundDisclosure by remember { mutableStateOf(false) }
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordChanged by remember { mutableStateOf(false) }
+
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (!contents.isNullOrBlank()) {
+            onPairFromQr(contents)
+        }
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            scanLauncher.launch(
+                ScanOptions().apply {
+                    setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                    setPrompt("Scan the company phone QR from Device Management")
+                    setBeepEnabled(false)
+                    setOrientationLocked(true)
+                }
+            )
+        }
+    }
     val options = listOf(
         5_000L to "Every 5 seconds (default)",
         10_000L to "Every 10 seconds",
@@ -237,6 +268,62 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
+                        text = "Company link",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Unlinked phones keep trails only on this device. After you scan a Device Management QR, Locus still saves locally and also sends new points to that company.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (companyLink != null) {
+                        Text(
+                            text = "Linked to ${companyLink.assetName}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = { confirmUnlink = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !companyLinkBusy,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("Unlink company")
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                onClearCompanyLinkMessage()
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !companyLinkBusy,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(if (companyLinkBusy) "Linking…" else "Scan company QR")
+                        }
+                    }
+                    if (companyLinkMessage != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = companyLinkMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
                         text = "Password",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
@@ -277,7 +364,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Your trail never leaves this phone. The database is encrypted (SQLCipher + Android Keystore), cloud backup is disabled, and Locus has no account or sync. Map tiles come from OpenFreeMap over HTTPS.",
+                        text = "By default your trail stays on this phone. The database is encrypted (SQLCipher + Android Keystore) and cloud backup is disabled. If you link to a company via QR, new points are also sent to that company’s Device Management. Map tiles come from OpenFreeMap over HTTPS.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -329,6 +416,27 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showBackgroundDisclosure = false }) { Text("Not now") }
+            }
+        )
+    }
+
+    if (confirmUnlink) {
+        AlertDialog(
+            onDismissRequest = { confirmUnlink = false },
+            title = { Text("Unlink company?") },
+            text = {
+                Text("Locus will stop sending locations to the company. Trails already on this phone stay here.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUnlinkCompany()
+                        confirmUnlink = false
+                    }
+                ) { Text("Unlink") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmUnlink = false }) { Text("Cancel") }
             }
         )
     }

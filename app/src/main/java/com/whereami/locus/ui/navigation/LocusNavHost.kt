@@ -17,6 +17,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.whereami.locus.AppContainer
 import com.whereami.locus.presentation.AuthViewModel
+import com.whereami.locus.presentation.CompanyLinkViewModel
 import com.whereami.locus.presentation.DayDetailViewModel
 import com.whereami.locus.presentation.HistoryViewModel
 import com.whereami.locus.presentation.OnboardingViewModel
@@ -197,7 +198,13 @@ fun LocusNavHost(
             val todayViewModel: TodayViewModel = viewModel(
                 factory = TodayViewModel.factory(container)
             )
+            val companyLinkViewModel: CompanyLinkViewModel = viewModel(
+                factory = CompanyLinkViewModel.factory(container)
+            )
             val state by todayViewModel.uiState.collectAsStateWithLifecycle()
+            val companyLink by companyLinkViewModel.link.collectAsStateWithLifecycle()
+            val companyLinkBusy by companyLinkViewModel.busy.collectAsStateWithLifecycle()
+            val companyLinkMessage by companyLinkViewModel.message.collectAsStateWithLifecycle()
             SettingsScreen(
                 trackingEnabled = state.trackingEnabled,
                 onToggleTracking = todayViewModel::setTrackingEnabled,
@@ -206,6 +213,12 @@ fun LocusNavHost(
                 sampleIntervalMs = state.sampleIntervalMs,
                 onSampleIntervalChange = todayViewModel::setSampleIntervalMs,
                 onDeleteAll = todayViewModel::deleteAll,
+                companyLink = companyLink,
+                companyLinkBusy = companyLinkBusy,
+                companyLinkMessage = companyLinkMessage,
+                onClearCompanyLinkMessage = companyLinkViewModel::clearMessage,
+                onPairFromQr = companyLinkViewModel::pairFromQr,
+                onUnlinkCompany = companyLinkViewModel::unlink,
                 authError = authError,
                 onClearAuthError = authViewModel::clearError,
                 onChangePassword = { current, newPassword, confirm, onSuccess ->

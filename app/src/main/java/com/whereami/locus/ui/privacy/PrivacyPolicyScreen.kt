@@ -58,18 +58,18 @@ fun PrivacyPolicyScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                text = "Your trail stays on this phone",
+                text = "Your trail stays on this phone by default",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             PolicySection(
                 "What Locus stores",
                 "Precise location points, places you name, app settings, and salted password/recovery hashes. All of this stays in private app storage. The trail database is encrypted; cloud backup is disabled."
             )
             PolicySection(
                 "What may use the network",
-                "Map tiles load over HTTPS from OpenFreeMap so the map can draw. Tile requests reflect the map region you view. Locus does not upload your trail, password, or recovery data to any Locus server."
+                "Map tiles load over HTTPS from OpenFreeMap so the map can draw. Tile requests reflect the map region you view. If you scan a company Device Management QR, Locus also sends new location points to that company’s ERP while linked. Passwords and recovery data never leave this phone."
             )
             PolicySection(
                 "Background location",

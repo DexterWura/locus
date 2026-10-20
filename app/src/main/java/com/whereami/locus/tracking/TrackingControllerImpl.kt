@@ -2,6 +2,7 @@ package com.whereami.locus.tracking
 
 import android.content.Context
 import com.whereami.locus.data.SettingsStore
+import com.whereami.locus.data.sync.LocationUploader
 import com.whereami.locus.domain.TrackRepository
 import com.whereami.locus.domain.TrackingController
 import com.whereami.locus.domain.TrackingMode
@@ -17,12 +18,14 @@ class TrackingControllerImpl(
     private val settingsStore: SettingsStore,
     private val locationSource: LocationSource,
     private val trackRepository: TrackRepository,
+    private val locationUploader: LocationUploader,
     private val appScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) : TrackingController {
     private val foregroundTracker = ForegroundTracker(
         locationSource = locationSource,
         trackRepository = trackRepository,
         settingsStore = settingsStore,
+        locationUploader = locationUploader,
         scope = appScope
     )
 

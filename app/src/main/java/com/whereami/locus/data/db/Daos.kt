@@ -35,6 +35,19 @@ interface TrackPointDao {
     @Query("SELECT * FROM track_points ORDER BY recordedAt ASC")
     suspend fun getAll(): List<TrackPointEntity>
 
+    @Query(
+        """
+        SELECT * FROM track_points
+        WHERE uploadedAt IS NULL
+        ORDER BY recordedAt ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getUnuploaded(limit: Int): List<TrackPointEntity>
+
+    @Query("UPDATE track_points SET uploadedAt = :uploadedAt WHERE id IN (:ids)")
+    suspend fun markUploaded(ids: List<Long>, uploadedAt: Long)
+
     @Query("DELETE FROM track_points")
     suspend fun deleteAll()
 }

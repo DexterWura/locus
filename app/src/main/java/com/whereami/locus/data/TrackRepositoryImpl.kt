@@ -73,6 +73,15 @@ class TrackRepositoryImpl(
         return trackPointDao.insert(TrackPointEntity.fromDomain(point.copy(id = 0L)))
     }
 
+    override suspend fun getUnuploadedPoints(limit: Int): List<TrackPoint> {
+        return trackPointDao.getUnuploaded(limit).map { it.toDomain() }
+    }
+
+    override suspend fun markPointsUploaded(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        trackPointDao.markUploaded(ids, System.currentTimeMillis())
+    }
+
     override suspend fun deleteAll() {
         trackPointDao.deleteAll()
         placeLabelDao.deleteAll()

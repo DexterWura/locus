@@ -14,7 +14,8 @@ data class TrackPointEntity(
     val altitudeMeters: Double? = null,
     val speedMetersPerSecond: Float? = null,
     val bearingDegrees: Float? = null,
-    val recordedAt: Long
+    val recordedAt: Long,
+    val uploadedAt: Long? = null
 ) {
     fun toDomain(): TrackPoint = TrackPoint(
         id = id,
@@ -36,7 +37,8 @@ data class TrackPointEntity(
             altitudeMeters = point.altitudeMeters,
             speedMetersPerSecond = point.speedMetersPerSecond,
             bearingDegrees = point.bearingDegrees,
-            recordedAt = point.recordedAt
+            recordedAt = point.recordedAt,
+            uploadedAt = null
         )
     }
 }
