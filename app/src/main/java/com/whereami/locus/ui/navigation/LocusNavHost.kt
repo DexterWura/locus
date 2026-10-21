@@ -21,12 +21,14 @@ import com.whereami.locus.presentation.CompanyLinkViewModel
 import com.whereami.locus.presentation.DayDetailViewModel
 import com.whereami.locus.presentation.HistoryViewModel
 import com.whereami.locus.presentation.OnboardingViewModel
+import com.whereami.locus.presentation.PlacesViewModel
 import com.whereami.locus.presentation.TodayViewModel
 import com.whereami.locus.ui.auth.LockScreen
 import com.whereami.locus.ui.auth.RecoveryScreen
 import com.whereami.locus.ui.history.DayDetailScreen
 import com.whereami.locus.ui.history.HistoryScreen
 import com.whereami.locus.ui.onboarding.OnboardingScreen
+import com.whereami.locus.ui.places.PlacesScreen
 import com.whereami.locus.ui.privacy.PrivacyPolicyScreen
 import com.whereami.locus.ui.settings.SettingsScreen
 import com.whereami.locus.ui.today.TodayScreen
@@ -37,12 +39,16 @@ object Routes {
     const val Recover = "recover"
     const val Today = "today"
     const val History = "history"
+    const val Places = "places"
     const val DayDetail = "day/{dayStart}"
     const val Settings = "settings"
     const val Privacy = "privacy"
 
     fun dayDetail(dayStart: Long) = "day/$dayStart"
 }
+
+private const val FOCUS_PLACE_LAT = "focus_place_lat"
+private const val FOCUS_PLACE_LON = "focus_place_lon"
 
 @Composable
 fun LocusNavHost(
@@ -155,15 +161,32 @@ fun LocusNavHost(
                 }
             }
         }
-        composable(Routes.Today) {
+        composable(Routes.Today) { entry ->
             val todayViewModel: TodayViewModel = viewModel(
                 factory = TodayViewModel.factory(container)
             )
             val state by todayViewModel.uiState.collectAsStateWithLifecycle()
+            val focusLat = entry.savedStateHandle.getStateFlow<Double?>(FOCUS_PLACE_LAT, null)
+                .collectAsStateWithLifecycle()
+            val focusLon = entry.savedStateHandle.getStateFlow<Double?>(FOCUS_PLACE_LON, null)
+                .collectAsStateWithLifecycle()
+            LaunchedEffect(focusLat.value, focusLon.value) {
+                val lat = focusLat.value
+                val lon = focusLon.value
+                if (lat != null && lon != null) {
+                    todayViewModel.focusAt(lat, lon)
+                    entry.savedStateHandle.remove<Double>(FOCUS_PLACE_LAT)
+                    entry.savedStateHandle.remove<Double>(FOCUS_PLACE_LON)
+                }
+            }
             TodayScreen(
                 state = state,
                 onOpenHistory = { navController.navigate(Routes.History) },
-                onOpenSettings = { navController.navigate(Routes.Settings) }
+                onOpenPlaces = { navController.navigate(Routes.Places) },
+                onOpenSettings = { navController.navigate(Routes.Settings) },
+                onSavePlace = todayViewModel::savePlace,
+                onUpdatePlace = todayViewModel::updatePlace,
+                onDeletePlace = todayViewModel::deletePlace
             )
         }
         composable(Routes.History) {
@@ -179,6 +202,27 @@ fun LocusNavHost(
                 }
             )
         }
+        composable(Routes.Places) {
+            val placesViewModel: PlacesViewModel = viewModel(
+                factory = PlacesViewModel.factory(container)
+            )
+            val places by placesViewModel.places.collectAsStateWithLifecycle()
+            PlacesScreen(
+                places = places,
+                onBack = { navController.popBackStack() },
+                onOpenPlace = { place ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set(
+                        FOCUS_PLACE_LAT,
+                        place.latitude
+                    )
+                    navController.previousBackStackEntry?.savedStateHandle?.set(
+                        FOCUS_PLACE_LON,
+                        place.longitude
+                    )
+                    navController.popBackStack()
+                }
+            )
+        }
         composable(
             route = Routes.DayDetail,
             arguments = listOf(navArgument("dayStart") { type = NavType.LongType })
@@ -188,10 +232,15 @@ fun LocusNavHost(
                 factory = DayDetailViewModel.factory(container, dayStart)
             )
             val detail by dayViewModel.detail.collectAsStateWithLifecycle()
+            val places by dayViewModel.places.collectAsStateWithLifecycle()
             DayDetailScreen(
                 detail = detail,
+                places = places,
                 onBack = { navController.popBackStack() },
-                onNameStop = dayViewModel::nameStop
+                onNameStop = dayViewModel::nameStop,
+                onSavePlace = dayViewModel::savePlace,
+                onUpdatePlace = dayViewModel::updatePlace,
+                onDeletePlace = dayViewModel::deletePlace
             )
         }
         composable(Routes.Settings) {

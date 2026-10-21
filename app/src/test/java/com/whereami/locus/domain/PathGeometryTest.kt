@@ -148,6 +148,51 @@ class PathGeometryTest {
         assertEquals("Home", PathGeometry.matchPlaceName(center, labels))
     }
 
+    @Test
+    fun nearestPlaceWithinRadius_returnsClosestLabel() {
+        val center = LatLng(40.0, -74.0)
+        val home = PlaceLabel(
+            id = 1L,
+            name = "Home",
+            latitude = 40.0002,
+            longitude = -74.0,
+            radiusMeters = 80f
+        )
+        val cafe = PlaceLabel(
+            id = 2L,
+            name = "Cafe",
+            latitude = 40.01,
+            longitude = -74.0,
+            radiusMeters = 80f
+        )
+        assertEquals(home, PathGeometry.nearestPlaceWithinRadius(center, listOf(home, cafe)))
+    }
+
+    @Test
+    fun nearestPlaceWithinRadius_nullWhenOutsideAllRadii() {
+        val center = LatLng(40.0, -74.0)
+        val labels = listOf(
+            PlaceLabel(name = "Far", latitude = 40.05, longitude = -74.0, radiusMeters = 80f)
+        )
+        assertEquals(null, PathGeometry.nearestPlaceWithinRadius(center, labels))
+    }
+
+    @Test
+    fun nearestPlaceWithinRadius_prefersExistingForRenameUpdates() {
+        val center = LatLng(40.0, -74.0)
+        val existing = PlaceLabel(
+            id = 9L,
+            name = "Old name",
+            latitude = 40.0001,
+            longitude = -74.0,
+            radiusMeters = 80f,
+            note = "keep me"
+        )
+        val matched = PathGeometry.nearestPlaceWithinRadius(center, listOf(existing))
+        assertEquals(9L, matched?.id)
+        assertEquals("keep me", matched?.note)
+    }
+
     private fun point(
         lat: Double,
         lon: Double,

@@ -21,14 +21,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,31 +42,52 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.whereami.locus.domain.DayTime
 import com.whereami.locus.domain.Heading
+import com.whereami.locus.domain.LatLng
+import com.whereami.locus.domain.PathGeometry
+import com.whereami.locus.domain.PlaceLabel
 import com.whereami.locus.domain.TrackingStatus
 import com.whereami.locus.presentation.TodayUiState
 import com.whereami.locus.ui.components.BottomSheetCard
 import com.whereami.locus.ui.components.CompassDial
 import com.whereami.locus.ui.components.RoundIconButton
 import com.whereami.locus.ui.map.LocusMap
+import com.whereami.locus.ui.places.PlaceDetailDialog
+import com.whereami.locus.ui.places.PlaceEditorDialog
 import com.whereami.locus.ui.theme.LocatorBlue
 import com.whereami.locus.ui.theme.MovingGreen
 import com.whereami.locus.ui.theme.StillAmber
+
+private sealed class PlaceDialog {
+    data class Create(val location: LatLng) : PlaceDialog()
+    data class Detail(val place: PlaceLabel) : PlaceDialog()
+    data class Edit(val place: PlaceLabel) : PlaceDialog()
+}
 
 @Composable
 fun TodayScreen(
     state: TodayUiState,
     onOpenHistory: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenPlaces: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onSavePlace: (latitude: Double, longitude: Double, name: String, note: String?) -> Unit,
+    onUpdatePlace: (PlaceLabel, name: String, note: String?) -> Unit,
+    onDeletePlace: (Long) -> Unit
 ) {
     var recenterToken by remember { mutableIntStateOf(0) }
+    var placeDialog by remember { mutableStateOf<PlaceDialog?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LocusMap(
             pathSegments = state.pathSegments,
             currentPosition = state.currentPosition,
+            places = state.places,
             animatePath = true,
             fitToPath = state.path.size >= 2,
             recenterToken = recenterToken,
+            focusTarget = state.focusTarget,
+            focusToken = state.focusToken,
+            onMapLongClick = { latLng -> placeDialog = PlaceDialog.Create(latLng) },
+            onPlaceClick = { place -> placeDialog = PlaceDialog.Detail(place) },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -74,6 +98,9 @@ fun TodayScreen(
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            RoundIconButton(onClick = onOpenPlaces) {
+                Icon(Icons.Outlined.Place, contentDescription = "Places")
+            }
             RoundIconButton(onClick = onOpenHistory) {
                 Icon(Icons.Outlined.History, contentDescription = "History")
             }
@@ -87,7 +114,7 @@ fun TodayScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                .padding(end = 20.dp, bottom = 268.dp),
+                .padding(end = 20.dp, bottom = 300.dp),
             shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.primary
@@ -103,13 +130,64 @@ fun TodayScreen(
                 .navigationBarsPadding()
                 .padding(16.dp)
         ) {
-            TodaySheet(state = state)
+            TodaySheet(
+                state = state,
+                onSaveThisSpot = {
+                    val position = state.currentPosition ?: return@TodaySheet
+                    placeDialog = PlaceDialog.Create(position)
+                }
+            )
         }
+    }
+
+    when (val dialog = placeDialog) {
+        is PlaceDialog.Create -> PlaceEditorDialog(
+            title = "Name this place",
+            onDismiss = { placeDialog = null },
+            onSave = { name, note ->
+                onSavePlace(dialog.location.latitude, dialog.location.longitude, name, note)
+                placeDialog = null
+            }
+        )
+        is PlaceDialog.Detail -> {
+            val distance = state.currentPosition?.let {
+                PathGeometry.haversineMeters(
+                    it.latitude,
+                    it.longitude,
+                    dialog.place.latitude,
+                    dialog.place.longitude
+                )
+            }
+            PlaceDetailDialog(
+                place = dialog.place,
+                distanceMeters = distance,
+                onDismiss = { placeDialog = null },
+                onRename = { placeDialog = PlaceDialog.Edit(dialog.place) },
+                onDelete = {
+                    onDeletePlace(dialog.place.id)
+                    placeDialog = null
+                }
+            )
+        }
+        is PlaceDialog.Edit -> PlaceEditorDialog(
+            title = "Rename place",
+            initialName = dialog.place.name,
+            initialNote = dialog.place.note,
+            onDismiss = { placeDialog = PlaceDialog.Detail(dialog.place) },
+            onSave = { name, note ->
+                onUpdatePlace(dialog.place, name, note)
+                placeDialog = null
+            }
+        )
+        null -> Unit
     }
 }
 
 @Composable
-private fun TodaySheet(state: TodayUiState) {
+private fun TodaySheet(
+    state: TodayUiState,
+    onSaveThisSpot: () -> Unit
+) {
     BottomSheetCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -153,8 +231,15 @@ private fun TodaySheet(state: TodayUiState) {
                 }
             }
 
+            if (state.currentPosition != null) {
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onSaveThisSpot) {
+                    Text("Save this spot")
+                }
+            }
+
             if (state.points.isNotEmpty() || state.headingDegrees != null) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -217,22 +302,37 @@ private fun statusSubtitle(state: TodayUiState): String {
             "${DayTime.formatDistance(state.distanceMeters)} today · off"
         }
     }
+    val atPlace = state.currentPlace?.let { "At ${it.name}" }
     val distance = DayTime.formatDistance(state.distanceMeters)
     val speed = state.speedMps?.takeIf { it >= 0f }?.let { formatSpeed(it) }
     val facing = state.headingDegrees?.let { Heading.cardinal(it) }
     return when (state.status) {
         TrackingStatus.Moving -> buildString {
+            if (atPlace != null) {
+                append(atPlace)
+                append(" · ")
+            }
             append(distance)
             append(" today")
             if (speed != null) append(" · $speed")
             if (facing != null) append(" · $facing")
         }
         TrackingStatus.Still -> buildString {
+            if (atPlace != null) {
+                append(atPlace)
+                append(" · ")
+            }
             append(distance)
             append(" today · stationary")
             if (facing != null) append(" · facing $facing")
         }
-        TrackingStatus.Paused -> "$distance today · paused"
+        TrackingStatus.Paused -> buildString {
+            if (atPlace != null) {
+                append(atPlace)
+                append(" · ")
+            }
+            append("$distance today · paused")
+        }
     }
 }
 

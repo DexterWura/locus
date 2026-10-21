@@ -49,14 +49,18 @@ data class PlaceLabelEntity(
     val name: String,
     val latitude: Double,
     val longitude: Double,
-    val radiusMeters: Float
+    val radiusMeters: Float,
+    val note: String? = null,
+    val createdAt: Long? = null
 ) {
     fun toDomain(): PlaceLabel = PlaceLabel(
         id = id,
         name = name,
         latitude = latitude,
         longitude = longitude,
-        radiusMeters = radiusMeters
+        radiusMeters = radiusMeters,
+        note = note,
+        createdAt = createdAt
     )
 
     companion object {
@@ -65,7 +69,9 @@ data class PlaceLabelEntity(
             name = label.name,
             latitude = label.latitude,
             longitude = label.longitude,
-            radiusMeters = label.radiusMeters
+            radiusMeters = label.radiusMeters,
+            note = label.note,
+            createdAt = label.createdAt
         )
     }
 }

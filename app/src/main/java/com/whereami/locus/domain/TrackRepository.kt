@@ -12,6 +12,7 @@ interface TrackRepository {
     suspend fun markPointsUploaded(ids: List<Long>)
     suspend fun deleteAll()
     fun observePlaceLabels(): Flow<List<PlaceLabel>>
+    suspend fun getPlaceLabels(): List<PlaceLabel>
     suspend fun upsertPlaceLabel(label: PlaceLabel): Long
     suspend fun deletePlaceLabel(id: Long)
 }

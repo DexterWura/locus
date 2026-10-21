@@ -17,10 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Route
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,26 +33,44 @@ import androidx.compose.ui.unit.dp
 import com.whereami.locus.domain.DayDetail
 import com.whereami.locus.domain.DayTime
 import com.whereami.locus.domain.LatLng
+import com.whereami.locus.domain.PathGeometry
+import com.whereami.locus.domain.PlaceLabel
 import com.whereami.locus.domain.TimelineItem
 import com.whereami.locus.ui.components.BottomSheetCard
 import com.whereami.locus.ui.components.RoundIconButton
 import com.whereami.locus.ui.map.LocusMap
+import com.whereami.locus.ui.places.PlaceDetailDialog
+import com.whereami.locus.ui.places.PlaceEditorDialog
+
+private sealed class PlaceDialog {
+    data class Create(val location: LatLng) : PlaceDialog()
+    data class Detail(val place: PlaceLabel) : PlaceDialog()
+    data class Edit(val place: PlaceLabel) : PlaceDialog()
+    data class NameStop(val stop: TimelineItem.Stop) : PlaceDialog()
+}
 
 @Composable
 fun DayDetailScreen(
     detail: DayDetail?,
+    places: List<PlaceLabel>,
     onBack: () -> Unit,
-    onNameStop: (LatLng, String) -> Unit
+    onNameStop: (LatLng, String, String?) -> Unit,
+    onSavePlace: (latitude: Double, longitude: Double, name: String, note: String?) -> Unit,
+    onUpdatePlace: (PlaceLabel, name: String, note: String?) -> Unit,
+    onDeletePlace: (Long) -> Unit
 ) {
-    var namingStop by remember { mutableStateOf<TimelineItem.Stop?>(null) }
+    var placeDialog by remember { mutableStateOf<PlaceDialog?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (detail != null) {
             LocusMap(
                 pathSegments = detail.drawableSegments,
                 currentPosition = detail.drawablePoints.lastOrNull(),
+                places = places,
                 animatePath = true,
                 fitToPath = true,
+                onMapLongClick = { latLng -> placeDialog = PlaceDialog.Create(latLng) },
+                onPlaceClick = { place -> placeDialog = PlaceDialog.Detail(place) },
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -100,7 +116,7 @@ fun DayDetailScreen(
                             when (item) {
                                 is TimelineItem.Stop -> StopRow(
                                     stop = item,
-                                    onName = { namingStop = item }
+                                    onName = { placeDialog = PlaceDialog.NameStop(item) }
                                 )
                                 is TimelineItem.Trip -> TripRow(trip = item)
                             }
@@ -111,31 +127,55 @@ fun DayDetailScreen(
         }
     }
 
-    namingStop?.let { stop ->
-        var name by remember(stop) { mutableStateOf(stop.placeName.orEmpty()) }
-        AlertDialog(
-            onDismissRequest = { namingStop = null },
-            title = { Text("Name this place") },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    singleLine = true,
-                    label = { Text("Place name") }
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onNameStop(stop.center, name)
-                        namingStop = null
-                    }
-                ) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { namingStop = null }) { Text("Cancel") }
+    when (val dialog = placeDialog) {
+        is PlaceDialog.Create -> PlaceEditorDialog(
+            title = "Name this place",
+            onDismiss = { placeDialog = null },
+            onSave = { name, note ->
+                onSavePlace(dialog.location.latitude, dialog.location.longitude, name, note)
+                placeDialog = null
             }
         )
+        is PlaceDialog.NameStop -> PlaceEditorDialog(
+            title = "Name this place",
+            initialName = dialog.stop.placeName.orEmpty(),
+            onDismiss = { placeDialog = null },
+            onSave = { name, note ->
+                onNameStop(dialog.stop.center, name, note)
+                placeDialog = null
+            }
+        )
+        is PlaceDialog.Detail -> {
+            val distance = detail?.drawablePoints?.lastOrNull()?.let {
+                PathGeometry.haversineMeters(
+                    it.latitude,
+                    it.longitude,
+                    dialog.place.latitude,
+                    dialog.place.longitude
+                )
+            }
+            PlaceDetailDialog(
+                place = dialog.place,
+                distanceMeters = distance,
+                onDismiss = { placeDialog = null },
+                onRename = { placeDialog = PlaceDialog.Edit(dialog.place) },
+                onDelete = {
+                    onDeletePlace(dialog.place.id)
+                    placeDialog = null
+                }
+            )
+        }
+        is PlaceDialog.Edit -> PlaceEditorDialog(
+            title = "Rename place",
+            initialName = dialog.place.name,
+            initialNote = dialog.place.note,
+            onDismiss = { placeDialog = PlaceDialog.Detail(dialog.place) },
+            onSave = { name, note ->
+                onUpdatePlace(dialog.place, name, note)
+                placeDialog = null
+            }
+        )
+        null -> Unit
     }
 }
 

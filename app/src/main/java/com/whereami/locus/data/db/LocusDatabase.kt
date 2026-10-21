@@ -13,7 +13,7 @@ import java.io.File
 
 @Database(
     entities = [TrackPointEntity::class, PlaceLabelEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class LocusDatabase : RoomDatabase() {
@@ -27,6 +27,13 @@ abstract class LocusDatabase : RoomDatabase() {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE track_points ADD COLUMN uploadedAt INTEGER")
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE place_labels ADD COLUMN note TEXT")
+                db.execSQL("ALTER TABLE place_labels ADD COLUMN createdAt INTEGER")
             }
         }
 
@@ -49,7 +56,7 @@ abstract class LocusDatabase : RoomDatabase() {
                 ENCRYPTED_DB_NAME
             )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
         }
 
@@ -65,7 +72,7 @@ abstract class LocusDatabase : RoomDatabase() {
                 ENCRYPTED_DB_NAME
             )
                 .openHelperFactory(SupportFactory(passphrase.copyOf()))
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
 
             val legacy = Room.databaseBuilder(
@@ -73,7 +80,7 @@ abstract class LocusDatabase : RoomDatabase() {
                 LocusDatabase::class.java,
                 LEGACY_DB_NAME
             )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
 
             var migrated = false

@@ -1,6 +1,6 @@
 # Locus Privacy Policy
 
-**Last updated:** 20 October 2026
+**Last updated:** 21 October 2026
 
 Locus (“the app”) is a personal day-trail tracker for Android. This policy describes what data the app handles and how.
 
@@ -11,7 +11,7 @@ Locus has no Locus account and no cloud sync operated by the developer. Trails a
 ## Data Locus collects and stores on your device
 
 - **Precise location** — GPS (and related location providers) points used to draw your day path, including time, accuracy, and speed when available.
-- **Places you name** — optional labels you assign to stops.
+- **Places you name** — optional pin labels (name, coordinates, radius, and optional note) you drop on the map or assign to stops.
 - **App settings** — tracking on/off, tracking mode, sampling interval, onboarding completion.
 - **Company link credentials** — if you scan a company QR, the server URL, device token, and asset name for that link (stored in encrypted preferences).
 - **Lock credentials** — salted password and recovery hashes (not plaintext passwords). These never leave the device.

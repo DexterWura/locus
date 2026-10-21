@@ -136,6 +136,8 @@ object DeviceDataBridge {
                     .put("latitude", label.latitude)
                     .put("longitude", label.longitude)
                     .put("radiusMeters", label.radiusMeters.toDouble())
+                    .put("note", label.note)
+                    .put("createdAt", label.createdAt)
             )
         }
         root.put("labels", labelArray)
@@ -221,7 +223,17 @@ object DeviceDataBridge {
                             name = label.getString("name"),
                             latitude = label.getDouble("latitude"),
                             longitude = label.getDouble("longitude"),
-                            radiusMeters = label.getDouble("radiusMeters").toFloat()
+                            radiusMeters = label.getDouble("radiusMeters").toFloat(),
+                            note = if (!label.has("note") || label.isNull("note")) {
+                                null
+                            } else {
+                                label.getString("note")
+                            },
+                            createdAt = if (!label.has("createdAt") || label.isNull("createdAt")) {
+                                null
+                            } else {
+                                label.getLong("createdAt")
+                            }
                         )
                     )
                 }

@@ -146,7 +146,7 @@ object PathGeometry {
         return timeline
     }
 
-    fun matchPlaceName(center: LatLng, placeLabels: List<PlaceLabel>): String? {
+    fun nearestPlaceWithinRadius(center: LatLng, placeLabels: List<PlaceLabel>): PlaceLabel? {
         return placeLabels
             .map { label ->
                 label to haversineMeters(
@@ -159,8 +159,10 @@ object PathGeometry {
             .filter { (label, distance) -> distance <= label.radiusMeters }
             .minByOrNull { it.second }
             ?.first
-            ?.name
     }
+
+    fun matchPlaceName(center: LatLng, placeLabels: List<PlaceLabel>): String? =
+        nearestPlaceWithinRadius(center, placeLabels)?.name
 
     private fun cleanedTrackPoints(points: List<TrackPoint>): List<TrackPoint> =
         cleanedTrackSegments(points).flatten()

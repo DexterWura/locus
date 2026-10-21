@@ -91,6 +91,10 @@ class TrackRepositoryImpl(
         return placeLabelDao.observeAll().map { entities -> entities.map { it.toDomain() } }
     }
 
+    override suspend fun getPlaceLabels(): List<PlaceLabel> {
+        return placeLabelDao.getAll().map { it.toDomain() }
+    }
+
     override suspend fun upsertPlaceLabel(label: PlaceLabel): Long {
         return placeLabelDao.upsert(PlaceLabelEntity.fromDomain(label))
     }

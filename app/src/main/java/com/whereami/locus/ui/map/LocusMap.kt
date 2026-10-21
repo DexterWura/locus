@@ -21,14 +21,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.whereami.locus.domain.LatLng
+import com.whereami.locus.domain.PlaceLabel
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
@@ -46,22 +49,32 @@ import org.maplibre.android.geometry.LatLng as MapLatLng
 private const val STYLE_URI = "https://tiles.openfreemap.org/styles/liberty"
 private const val SOURCE_PATH = "locus-path"
 private const val SOURCE_POSITION = "locus-position"
+private const val SOURCE_PLACES = "locus-places"
 private const val LAYER_PATH_CASING = "locus-path-casing"
 private const val LAYER_PATH = "locus-path-layer"
 private const val LAYER_PATH_ARROWS = "locus-path-arrows"
+private const val LAYER_PLACES = "locus-places-layer"
 private const val IMAGE_PATH_ARROW = "locus-path-arrow"
+private const val IMAGE_PLACE_PIN = "locus-place-pin"
 private const val TRAIL_COLOR = "#1A73E8"
 private const val ARROW_EDGE_COLOR = "#0B3D91"
+private const val PIN_COLOR = "#E53935"
 private const val LAYER_POSITION_HALO = "locus-position-halo"
 private const val LAYER_POSITION = "locus-position-layer"
+private const val PROP_PLACE_ID = "placeId"
 
 @Composable
 fun LocusMap(
     pathSegments: List<List<LatLng>>,
     currentPosition: LatLng?,
+    places: List<PlaceLabel> = emptyList(),
     animatePath: Boolean = true,
     fitToPath: Boolean = false,
     recenterToken: Int = 0,
+    focusTarget: LatLng? = null,
+    focusToken: Int = 0,
+    onMapLongClick: ((LatLng) -> Unit)? = null,
+    onPlaceClick: ((PlaceLabel) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -92,6 +105,11 @@ fun LocusMap(
         label = "pulseAlpha"
     )
 
+    val placesById = remember(places) { places.associateBy { it.id } }
+    val onMapLongClickState = rememberUpdatedState(onMapLongClick)
+    val onPlaceClickState = rememberUpdatedState(onPlaceClick)
+    val placesByIdState = rememberUpdatedState(placesById)
+
     LaunchedEffect(pathSegments, animatePath) {
         if (animatePath && allPoints.size >= 2) {
             pathProgress.snapTo(0f)
@@ -106,15 +124,17 @@ fun LocusMap(
     }
 
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+    var mapLibreRef by remember { mutableStateOf<MapLibreMap?>(null) }
     var styleReady by remember { mutableStateOf(false) }
 
-    LaunchedEffect(visibleSegments, currentPosition, styleReady, pulseScale, pulseAlpha) {
+    LaunchedEffect(visibleSegments, currentPosition, places, styleReady, pulseScale, pulseAlpha) {
         val mapView = mapViewRef ?: return@LaunchedEffect
         if (!styleReady) return@LaunchedEffect
         mapView.getMapAsync { map ->
             val style = map.style ?: return@getMapAsync
             updatePathSource(style, visibleSegments)
             updatePositionSource(style, currentPosition, pulseScale, pulseAlpha)
+            updatePlacesSource(style, places)
         }
     }
 
@@ -132,6 +152,20 @@ fun LocusMap(
         }
     }
 
+    LaunchedEffect(focusToken, focusTarget, styleReady) {
+        if (focusToken == 0) return@LaunchedEffect
+        val mapView = mapViewRef ?: return@LaunchedEffect
+        val target = focusTarget ?: return@LaunchedEffect
+        mapView.getMapAsync { map ->
+            map.animateCamera(
+                CameraUpdateFactory.newLatLngZoom(
+                    MapLatLng(target.latitude, target.longitude),
+                    16.0
+                )
+            )
+        }
+    }
+
     LaunchedEffect(fitToPath, pathSegments, styleReady) {
         if (!fitToPath || allPoints.size < 2 || !styleReady) return@LaunchedEffect
         val mapView = mapViewRef ?: return@LaunchedEffect
@@ -143,6 +177,36 @@ fun LocusMap(
         }
     }
 
+    DisposableEffect(mapLibreRef, styleReady) {
+        val map = mapLibreRef
+        if (map == null || !styleReady) {
+            onDispose { }
+        } else {
+            val longClickListener = MapLibreMap.OnMapLongClickListener { point ->
+                val callback = onMapLongClickState.value ?: return@OnMapLongClickListener false
+                callback(LatLng(point.latitude, point.longitude))
+                true
+            }
+            val clickListener = MapLibreMap.OnMapClickListener { point ->
+                val callback = onPlaceClickState.value ?: return@OnMapClickListener false
+                val screen = map.projection.toScreenLocation(point)
+                val features = map.queryRenderedFeatures(screen, LAYER_PLACES)
+                val feature = features.firstOrNull() ?: return@OnMapClickListener false
+                val id = feature.getNumberProperty(PROP_PLACE_ID)?.toLong()
+                    ?: return@OnMapClickListener false
+                val place = placesByIdState.value[id] ?: return@OnMapClickListener false
+                callback(place)
+                true
+            }
+            map.addOnMapLongClickListener(longClickListener)
+            map.addOnMapClickListener(clickListener)
+            onDispose {
+                map.removeOnMapLongClickListener(longClickListener)
+                map.removeOnMapClickListener(clickListener)
+            }
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
@@ -150,6 +214,7 @@ fun LocusMap(
                     mapView.onCreate(null)
                     mapViewRef = mapView
                     mapView.getMapAsync { map ->
+                        mapLibreRef = map
                         map.uiSettings.isLogoEnabled = true
                         map.uiSettings.isAttributionEnabled = true
                         map.uiSettings.isCompassEnabled = false
@@ -195,6 +260,9 @@ private fun MapLifecycle(mapView: MapView?) {
 private fun ensureLayers(context: Context, style: Style) {
     if (style.getImage(IMAGE_PATH_ARROW) == null) {
         style.addImage(IMAGE_PATH_ARROW, createArrowBitmap(context))
+    }
+    if (style.getImage(IMAGE_PLACE_PIN) == null) {
+        style.addImage(IMAGE_PLACE_PIN, createPinBitmap(context))
     }
     if (style.getSource(SOURCE_PATH) == null) {
         style.addSource(GeoJsonSource(SOURCE_PATH))
@@ -246,6 +314,26 @@ private fun ensureLayers(context: Context, style: Style) {
             )
         )
     }
+    if (style.getSource(SOURCE_PLACES) == null) {
+        style.addSource(GeoJsonSource(SOURCE_PLACES))
+        style.addLayer(
+            SymbolLayer(LAYER_PLACES, SOURCE_PLACES).withProperties(
+                PropertyFactory.iconImage(IMAGE_PLACE_PIN),
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.textField("{name}"),
+                PropertyFactory.textSize(12f),
+                PropertyFactory.textOffset(arrayOf(0f, 0.35f)),
+                PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+                PropertyFactory.textColor(AndroidColor.parseColor("#0F172A")),
+                PropertyFactory.textHaloColor(AndroidColor.WHITE),
+                PropertyFactory.textHaloWidth(1.2f),
+                PropertyFactory.textOptional(true),
+                PropertyFactory.textAllowOverlap(false)
+            )
+        )
+    }
 }
 
 /** Right-pointing chevron: line placement aligns the icon's +x axis with the line direction. */
@@ -272,6 +360,43 @@ private fun createArrowBitmap(context: Context): Bitmap {
     paint.color = AndroidColor.WHITE
     paint.strokeWidth = 2.2f * density
     canvas.drawPath(chevron, paint)
+    return bitmap
+}
+
+private fun createPinBitmap(context: Context): Bitmap {
+    val metrics = context.resources.displayMetrics
+    val density = metrics.density
+    val width = (24f * density).toInt().coerceAtLeast(1)
+    val height = (32f * density).toInt().coerceAtLeast(1)
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    bitmap.density = metrics.densityDpi
+    val canvas = Canvas(bitmap)
+    val cx = width / 2f
+    val headRadius = width * 0.34f
+    val headCy = headRadius + density
+    val pin = Path().apply {
+        addCircle(cx, headCy, headRadius, Path.Direction.CW)
+        moveTo(cx - headRadius * 0.72f, headCy + headRadius * 0.45f)
+        lineTo(cx, height - density)
+        lineTo(cx + headRadius * 0.72f, headCy + headRadius * 0.45f)
+        close()
+    }
+    val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = AndroidColor.parseColor(PIN_COLOR)
+    }
+    val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = AndroidColor.WHITE
+        strokeWidth = 1.5f * density
+    }
+    canvas.drawPath(pin, fill)
+    canvas.drawPath(pin, stroke)
+    val hole = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = AndroidColor.WHITE
+    }
+    canvas.drawCircle(cx, headCy, headRadius * 0.35f, hole)
     return bitmap
 }
 
@@ -328,4 +453,17 @@ private fun updatePositionSource(
     source.setGeoJson(
         Feature.fromGeometry(Point.fromLngLat(position.longitude, position.latitude))
     )
+}
+
+private fun updatePlacesSource(style: Style, places: List<PlaceLabel>) {
+    val source = style.getSourceAs<GeoJsonSource>(SOURCE_PLACES) ?: return
+    val features = places.map { place ->
+        Feature.fromGeometry(
+            Point.fromLngLat(place.longitude, place.latitude)
+        ).also { feature ->
+            feature.addNumberProperty(PROP_PLACE_ID, place.id.toDouble())
+            feature.addStringProperty("name", place.name)
+        }
+    }
+    source.setGeoJson(FeatureCollection.fromFeatures(features))
 }

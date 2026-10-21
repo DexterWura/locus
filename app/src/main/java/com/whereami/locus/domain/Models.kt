@@ -16,7 +16,9 @@ data class PlaceLabel(
     val name: String,
     val latitude: Double,
     val longitude: Double,
-    val radiusMeters: Float = 80f
+    val radiusMeters: Float = 80f,
+    val note: String? = null,
+    val createdAt: Long? = null
 )
 
 data class DaySummary(

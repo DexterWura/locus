@@ -9,9 +9,10 @@ Inspired by the calm full-screen map and bottom sheet of Google Find My Device �
 ## Features
 
 - **Today** — live path on a MapLibre map, status sheet (Moving / Still / Paused), compass heading
+- **Places** — drop named pins on the map (long-press or Save this spot), optional notes, list sorted by distance
 - **Compass** — device direction (N / NE / E …) from the phone’s sensors
 - **History** — day list with distance, time span, and canvas path thumbnails
-- **Day detail** — animated path plus trip/stop timeline; name places locally
+- **Day detail** — animated path plus trip/stop timeline; name stops or pins locally
 - **Tracking toggle** — turn path recording on/off in Settings
 - **Tracking modes** — while using the app (no sticky notice) or all-day background (ongoing notice + disclosure)
 - **Encrypted at rest** — SQLCipher trail DB, encrypted prefs, Android Keystore; cloud backup disabled
@@ -23,7 +24,7 @@ Inspired by the calm full-screen map and bottom sheet of Google Find My Device �
 
 | Stays on device | May use the network |
 | --- | --- |
-| GPS points, places you name, password hashes, recovery data | Map tiles (OpenFreeMap pictures of the world) |
+| GPS points, named place pins (and optional notes), password hashes, recovery data | Map tiles (OpenFreeMap pictures of the world) |
 
 **Privacy policy:** [PRIVACY.md](PRIVACY.md) · also in-app under Settings  
 **Play Data safety notes:** [DATA_SAFETY.md](DATA_SAFETY.md)
