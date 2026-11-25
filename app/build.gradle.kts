@@ -13,14 +13,21 @@ android {
 
     defaultConfig {
         applicationId = "com.whereami.locus"
-        minSdk = 29
+        // Sunmi V2 Pro is Android 7.1.2 (API 25); modern phones stay on targetSdk 36.
+        minSdk = 25
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.3.1"
+        versionCode = 7
+        versionName = "1.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
+        create("installable") {
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         create("release") {
             val keystorePropsFile = rootProject.file("keystore.properties")
             if (keystorePropsFile.exists()) {
@@ -37,15 +44,18 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Keep installable for local Sunmi installs when no release keystore is present.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
             val releaseSigning = signingConfigs.getByName("release")
-            if (releaseSigning.storeFile != null) {
-                signingConfig = releaseSigning
+            signingConfig = if (releaseSigning.storeFile != null) {
+                releaseSigning
+            } else {
+                signingConfigs.getByName("installable")
             }
         }
     }
@@ -73,7 +83,8 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
         jniLibs {
-            useLegacyPackaging = false
+            // Required for older Android (API 25) to load MapLibre/SQLCipher native libs.
+            useLegacyPackaging = true
         }
     }
 }
