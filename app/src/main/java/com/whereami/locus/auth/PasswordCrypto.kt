@@ -1,8 +1,9 @@
 package com.whereami.locus.auth
 
+import android.os.Build
+import android.util.Base64
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.Base64
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
@@ -29,8 +30,14 @@ object PasswordCrypto {
     }
 
     fun hashSecret(secret: String, salt: ByteArray): ByteArray {
+        val algorithm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            "PBKDF2WithHmacSHA256"
+        } else {
+            // java.util.Base64 and PBKDF2WithHmacSHA256 both arrive at API 26.
+            "PBKDF2WithHmacSHA1"
+        }
         val spec = PBEKeySpec(secret.toCharArray(), salt, ITERATIONS, KEY_LENGTH_BITS)
-        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val factory = SecretKeyFactory.getInstance(algorithm)
         return try {
             factory.generateSecret(spec).encoded
         } finally {
@@ -55,7 +62,9 @@ object PasswordCrypto {
     fun normalizePhrase(phrase: String): String =
         phrase.trim().lowercase().replace(Regex("\\s+"), " ")
 
-    fun encode(bytes: ByteArray): String = Base64.getEncoder().encodeToString(bytes)
+    fun encode(bytes: ByteArray): String =
+        Base64.encodeToString(bytes, Base64.NO_WRAP)
 
-    fun decode(value: String): ByteArray = Base64.getDecoder().decode(value)
+    fun decode(value: String): ByteArray =
+        Base64.decode(value, Base64.NO_WRAP)
 }

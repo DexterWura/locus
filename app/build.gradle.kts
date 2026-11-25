@@ -16,8 +16,8 @@ android {
         // Sunmi V2 Pro is Android 7.1.2 (API 25); modern phones stay on targetSdk 36.
         minSdk = 25
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.3.2"
+        versionCode = 8
+        versionName = "1.3.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

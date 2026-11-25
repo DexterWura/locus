@@ -132,6 +132,7 @@ class TrackingService : Service() {
     }
 
     private fun createChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -152,7 +153,7 @@ class TrackingService : Service() {
         statusJob?.cancel()
         statusJob = null
         (application as LocusApp).container.locationSource.markPaused()
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 

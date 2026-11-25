@@ -4,10 +4,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Soft halo -->
     <path
-        android:fillColor="#1A73E8"
-        android:pathData="M54,30c-9.94,0 -18,8.06 -18,18c0,13.5 18,30 18,30s18,-16.5 18,-30c0,-9.94 -8.06,-18 -18,-18z" />
+        android:fillColor="#22FFFFFF"
+        android:pathData="M54,28a26,26 0 1,1 0,52a26,26 0 1,1 0,-52z" />
+    <!-- Pin body -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,40c-4.42,0 -8,3.58 -8,8s3.58,8 8,8 8,-3.58 8,-8 -3.58,-8 -8,-8z" />
+        android:pathData="M54,30c-11.05,0 -20,8.95 -20,20c0,15 20,34 20,34s20,-19 20,-34c0,-11.05 -8.95,-20 -20,-20z" />
+    <!-- Pin hole -->
+    <path
+        android:fillColor="#1A73E8"
+        android:pathData="M54,40c-5.52,0 -10,4.48 -10,10s4.48,10 10,10 10,-4.48 10,-10 -4.48,-10 -10,-10z" />
 </vector>
